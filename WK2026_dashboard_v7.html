@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WK 2026 — Moby's Prediction Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c1022;--bg2:#121736;--panel:#171d3f;--panel2:#1d2450;--line:#2a3162;--text:#e8eaf6;--muted:#8b93c4;--gold:#f5c84c;--elo:#4c9af5;--form:#f5774c;--xg:#4cf5a8;--squad:#b54cf5;--warn:#f5564c;--third:#f5a623}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
+header{padding:42px 0 26px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase}
+h1{font-family:'Archivo',sans-serif;font-stretch:115%;font-weight:850;font-size:clamp(30px,5vw,52px);line-height:1.02;margin:10px 0 8px;text-transform:uppercase}
+h1 span{color:var(--gold)}
+.sub{color:var(--muted);max-width:680px}
+.sub b{color:var(--text)}
+nav{display:flex;gap:4px;margin:26px 0 30px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav button{background:none;border:none;color:var(--muted);font-family:'Archivo',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;padding:12px 18px;cursor:pointer;border-bottom:3px solid transparent}
+nav button:hover{color:var(--text)}
+nav button.active{color:var(--gold);border-bottom-color:var(--gold)}
+nav button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.page{display:none}
+.page.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h2{font-family:'Archivo',sans-serif;font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.note{color:var(--muted);font-size:13px;margin-bottom:22px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+.flag{font-size:16px;margin-right:6px}
+.rank-row{display:grid;grid-template-columns:34px 178px 1fr 64px;gap:12px;align-items:center;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .12s}
+.rank-row:hover{background:var(--panel)}
+.rank-num{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:12px;text-align:right}
+.rank-team{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-team .pool-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-left:6px}
+.bar-track{height:20px;background:var(--bg2);border-radius:4px;overflow:hidden;display:flex}
+.bar-seg{height:100%}
+.rank-val{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--gold);text-align:right}
+.excl{font-size:9px;color:var(--warn);font-family:'IBM Plex Mono',monospace;margin-left:5px}
+.detail{position:fixed;inset:0;background:rgba(8,10,24,.78);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.detail.open{display:flex}
+.detail-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:640px;width:100%;padding:28px;max-height:88vh;overflow-y:auto}
+.detail-card h3{font-family:'Archivo',sans-serif;font-weight:800;font-size:24px;text-transform:uppercase}
+.detail-card .close{float:right;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:18px}
+.stat{background:var(--bg2);border-radius:8px;padding:12px}
+.stat .lbl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.stat .val{font-family:'IBM Plex Mono',monospace;font-size:17px;margin-top:3px}
+.hist-title{font-family:'Archivo',sans-serif;font-weight:800;text-transform:uppercase;font-size:13px;color:var(--muted);margin:22px 0 10px}
+.hist-table{width:100%;border-collapse:collapse;font-size:12px}
+.hist-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 8px;border-bottom:1px solid var(--line)}
+.hist-table td{padding:6px 8px;border-bottom:1px solid var(--bg2)}
+.hist-table td.mono{font-family:'IBM Plex Mono',monospace}
+.wdl-W{color:var(--xg);font-weight:600}.wdl-D{color:var(--gold);font-weight:600}.wdl-L{color:var(--warn);font-weight:600}
+.pool-select{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.pool-select button{font-family:'Archivo',sans-serif;font-weight:800;font-size:14px;width:42px;height:42px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}
+.pool-select button:hover{border-color:var(--gold);color:var(--text)}
+.pool-select button.active{background:var(--gold);color:#1a1505;border-color:var(--gold)}
+.subtabs{display:flex;gap:6px;margin-bottom:20px}
+.subtabs button{background:var(--panel);border:1px solid var(--line);color:var(--muted);font-family:'Archivo',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:8px 16px;border-radius:6px;cursor:pointer}
+.subtabs button.active{background:var(--pan2,var(--panel2));color:var(--gold);border-color:var(--gold)}
+.pool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.team-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;cursor:pointer}
+.team-card:hover{border-color:var(--gold)}
+.team-card h4{font-family:'Archivo',sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.team-card h4 .cs{font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--gold)}
+.team-card .meta{font-size:12px;color:var(--muted);margin:4px 0 12px}
+.mini-rows{display:flex;flex-direction:column;gap:7px}
+.mini-row{display:grid;grid-template-columns:52px 1fr 44px;gap:8px;align-items:center;font-size:11px}
+.mini-row .l{color:var(--muted);text-transform:uppercase}
+.mini-track{height:8px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.mini-fill{height:100%;border-radius:3px}
+.mini-row .v{font-family:'IBM Plex Mono',monospace;text-align:right}
+.pool-matches{margin-top:26px}
+.pool-matches h3{font-family:'Archivo',sans-serif;font-weight:800;text-transform:uppercase;font-size:15px;margin-bottom:12px;color:var(--muted)}
+.standings{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--panel);border-radius:10px;overflow:hidden}
+.standings th{font-family:'Archivo',sans-serif;text-transform:uppercase;font-size:11px;letter-spacing:.05em;color:var(--muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.standings td{padding:11px 14px;border-bottom:1px solid var(--bg2)}
+.standings td.mono{font-family:'IBM Plex Mono',monospace}
+.standings tr.qual td{background:rgba(76,245,168,.05)}
+.standings tr.qual td:first-child{border-left:3px solid var(--xg)}
+.standings tr.third td{background:rgba(245,166,35,.07)}
+.standings tr.third td:first-child{border-left:3px solid var(--third)}
+.qual-note{font-size:11px;color:var(--muted);margin-top:8px}
+.sort-bar{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+.sort-bar span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.sort-bar button{background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer}
+.sort-bar button.active{color:var(--gold);border-color:var(--gold)}
+.slider-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.slider-bar label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.slider-bar input[type=range]{width:220px;accent-color:var(--gold)}
+.slider-bar .slider-val{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--gold);min-width:46px}
+.slider-bar .count{font-size:12px;color:var(--muted);margin-left:auto}
+.match{display:grid;grid-template-columns:74px 1fr 130px 90px;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:8px}
+.match.clickable{cursor:pointer;transition:border-color .12s}
+.match.clickable:hover{border-color:var(--gold)}
+.match .when{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted)}
+.match .teams{font-weight:600;font-size:13.5px}
+.match .teams .vs{color:var(--muted);font-weight:400;margin:0 7px;font-size:11px}
+.match .pool-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--gold);background:var(--bg2);padding:2px 6px;border-radius:3px;margin-left:8px}
+.match .pred{font-size:12px}
+.match .pred .who{font-weight:600;color:var(--gold)}
+.match .pred.tctc .who{color:var(--muted);font-style:italic}
+.conf-wrap{display:flex;align-items:center;gap:8px}
+.conf-track{flex:1;height:7px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.conf-fill{height:100%;background:linear-gradient(90deg,var(--warn),var(--gold) 60%,var(--xg))}
+.conf-val{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);min-width:32px;text-align:right}
+.scatter-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:24px;position:relative}
+svg text{font-family:'IBM Plex Mono',monospace}
+.tooltip{position:absolute;background:var(--bg);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:12.5px;pointer-events:none;display:none;z-index:10;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.tooltip .tt-name{font-weight:700;font-size:14px;margin-bottom:2px}
+.tooltip .tt-row{color:var(--muted)}
+.tooltip .tt-row b{color:var(--text);font-family:'IBM Plex Mono',monospace;font-weight:500}
+.scatter-pt{cursor:pointer}
+.scatter-pt:hover{stroke:#fff;stroke-width:2}
+.disagree-table{width:100%;border-collapse:collapse;font-size:13px}
+.disagree-table th{font-family:'Archivo',sans-serif;text-transform:uppercase;font-size:11px;letter-spacing:.06em;color:var(--muted);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+.disagree-table td{padding:9px 12px;border-bottom:1px solid var(--bg2)}
+.disagree-table td.mono{font-family:'IBM Plex Mono',monospace}
+.gap-pos{color:var(--xg)}.gap-neg{color:var(--warn)}
+.match-detail-meta{color:var(--muted);font-size:13px;margin:4px 0 16px}
+.md-compare{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+.md-compare th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+.md-compare td{padding:7px 8px;border-bottom:1px solid var(--bg2)}
+.md-compare td.mono{font-family:'IBM Plex Mono',monospace}
+.md-pred{background:var(--bg2);border-radius:8px;padding:14px;margin:16px 0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.map-frame{width:100%;height:280px;border:1px solid var(--line);border-radius:10px;margin-top:16px;position:relative;overflow:hidden;background:#0a0d1c}
+.map-tile{position:absolute;width:256px;height:256px;user-select:none;pointer-events:none}
+.map-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;border-radius:50%;background:var(--gold);border:3px solid #1a1505;box-shadow:0 0 0 3px rgba(245,200,76,.35),0 2px 8px rgba(0,0,0,.6);transform:translate(-50%,-50%);z-index:5}
+.map-note a{color:var(--gold);text-decoration:none}
+.map-note{font-size:11px;color:var(--muted);margin-top:6px}
+.live-bar{display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.live-bar button{background:var(--gold);color:#1a1505;border:none;font-family:'Archivo',sans-serif;font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.05em;padding:10px 18px;border-radius:7px;cursor:pointer}
+.live-bar button:disabled{opacity:.5;cursor:wait}
+.live-status{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card .lbl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.card .big{font-family:'Archivo',sans-serif;font-weight:850;font-size:28px;margin-top:4px}
+.card .small{font-size:11px;color:var(--muted);margin-top:2px}
+.live-row{display:grid;grid-template-columns:64px 1fr 120px 96px 110px;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:7px}
+.live-row .when{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.live-row .teams{font-weight:600;font-size:13px}
+.live-row .teams .vs{color:var(--muted);font-weight:400;margin:0 6px;font-size:10px}
+.live-row .pred-small{font-size:11px;color:var(--muted)}
+.live-row .pred-small b{color:var(--gold);font-weight:600}
+.score-in{display:flex;align-items:center;gap:5px;justify-content:center}
+.score-in input{width:38px;background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 4px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:13px}
+.score-in input:focus{outline:none;border-color:var(--gold)}
+.score-in .dash{color:var(--muted)}
+.outcome{font-family:'Archivo',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:center;padding:5px 8px;border-radius:5px}
+.outcome.ok{background:rgba(76,245,168,.12);color:var(--xg)}
+.outcome.bad{background:rgba(245,86,76,.12);color:var(--warn)}
+.outcome.half{background:rgba(245,200,76,.12);color:var(--gold)}
+.outcome.tctc{background:var(--bg2);color:var(--muted)}
+.outcome.pending{color:var(--muted);background:none;border:1px dashed var(--line)}
+.calib{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:18px 0 26px}
+.live-src{font-size:11px;color:var(--muted);margin-top:18px}
+.live-pool-h{font-family:'Archivo',sans-serif;font-weight:800;text-transform:uppercase;font-size:14px;color:var(--gold);margin:22px 0 10px}
+.method-block p,.method-block li{color:var(--muted);font-size:13px}
+@media(max-width:720px){
+  .rank-row{grid-template-columns:26px 124px 1fr 52px;gap:8px}
+  .match{grid-template-columns:64px 1fr;row-gap:8px}
+  .match .pred,.match .conf-wrap{grid-column:2}
+  .live-row{grid-template-columns:1fr 110px;row-gap:8px}
+  .live-row .when{grid-column:1}
+  .stat-grid{grid-template-columns:1fr 1fr}
+}
+@media(prefers-reduced-motion:reduce){.page.active{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Predictive model · 48 teams · 4 weighted variables</div>
+  <h1>World Cup <span>2026</span><br>Model Dashboard</h1>
+  <p class="sub">A 48-team predictive model created by <b>Moby</b> for the 2026 FIFA World Cup fantasy season. Four weighted variables, validated against the 2022 tournament and the betting market. Data sources: eloratings.net (ELO), Flashscore/Opta (xG), Transfermarkt (squad values), Oddschecker (market odds), openfootball (live results). Final pre-tournament snapshot: <b>10 June 2026</b> — full calculation details under Methodology.</p>
+</header>
+
+<nav>
+  <button class="active" data-page="rankings">Rankings</button>
+  <button data-page="pools">Pools</button>
+  <button data-page="market">Model vs Market</button>
+  <button data-page="matches">All Matches</button>
+  <button data-page="live">Live Results</button>
+  <button data-page="method">Methodology</button>
+</nav>
+
+<section id="rankings" class="page active">
+  <h2>Composite strength ranking</h2>
+  <p class="note">Each bar splits a team's composite score into its weighted components — not just how strong a team is, but why. Click a team for the full profile including squad details and the last 10 matches.</p>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--elo)"></i>ELO (45%)</span>
+    <span><i class="dot" style="background:var(--form)"></i>Form (25%)</span>
+    <span><i class="dot" style="background:var(--xg)"></i>xG diff (20%)</span>
+    <span><i class="dot" style="background:var(--squad)"></i>Squad value (10%)</span>
+    <span><i class="dot" style="background:var(--gold)"></i>Host nation bonus (+0.073)</span>
+    <span style="color:var(--warn)">×G = xG excluded (weights redistributed)</span>
+  </div>
+  <div id="rank-list"></div>
+</section>
+
+<section id="pools" class="page">
+  <h2>Pool analysis</h2>
+  <div class="pool-select" id="pool-select"></div>
+  <div class="subtabs">
+    <button class="active" data-sub="teams">Teams</button>
+    <button data-sub="standings">Predicted standings</button>
+  </div>
+  <div id="sub-teams">
+    <div class="pool-grid" id="pool-teams"></div>
+    <div class="pool-matches"><h3>Group stage fixtures</h3><div id="pool-match-list"></div></div>
+  </div>
+  <div id="sub-standings" style="display:none">
+    <table class="standings">
+      <thead><tr><th>#</th><th>Team</th><th>Pred. Pts</th><th>W</th><th>D</th><th>L</th><th>Composite</th></tr></thead>
+      <tbody id="standings-body"></tbody>
+    </table>
+    <p class="qual-note"><span style="color:var(--xg)">■</span> Top 2 advance directly. <span style="color:var(--third)">■</span> Predicted 3rd-place finisher ranked among the 8 best thirds across all pools — these also advance to the round of 32. Standings derived from match predictions: win = 3 pts, too close to call = 1 pt each; composite score breaks ties.</p>
+  </div>
+</section>
+
+<section id="market" class="page">
+  <h2>Model vs betting market</h2>
+  <p class="note">Composite score against the market's implied tournament-winner probability. Hover any point to identify the team. The dashed line is a least-squares trend fitted in the plotted space — teams above it are rated higher by the model than the market consensus, teams below it lower.</p>
+  <div class="scatter-box">
+    <svg id="scatter" width="100%" viewBox="0 0 900 520"></svg>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+  <h2 style="font-size:16px">Biggest disagreements</h2>
+  <p class="note">Model rank vs market rank. Positive gap = your model rates them higher than the market.</p>
+  <table class="disagree-table">
+    <thead><tr><th>Team</th><th>Model rank</th><th>Market rank</th><th>Gap</th><th>Reading</th></tr></thead>
+    <tbody id="disagree-body"></tbody>
+  </table>
+</section>
+
+<section id="matches" class="page">
+  <h2>All group stage matches</h2>
+  <p class="note">72 fixtures with model predictions and confidence scores. Click any match for full details including the venue map.</p>
+  <div class="sort-bar">
+    <span>Sort by</span>
+    <button class="active" data-sort="pool">Pool</button>
+    <button data-sort="date">Date</button>
+    <button data-sort="confidence">Confidence</button>
+    <button data-sort="gap">Score gap</button>
+  </div>
+  <div class="slider-bar">
+    <label for="conf-slider">Min. confidence</label>
+    <input type="range" id="conf-slider" min="0" max="100" step="5" value="0">
+    <span class="slider-val" id="slider-val">0%</span>
+    <span class="count" id="match-count"></span>
+  </div>
+  <div id="all-matches"></div>
+</section>
+
+<section id="live" class="page">
+  <h2>Predictions vs live results</h2>
+  <p class="note">Results load automatically from the open-source openfootball project on GitHub (community-updated, typically within hours of full-time — not minute-by-minute). Any score can be entered or corrected manually; manual entries override the feed and are saved in this browser. The feed reloads automatically on every visit; manual entries persist between sessions in this browser (clearing browser data or switching browsers removes them).</p>
+  <div class="live-bar">
+    <button id="refresh-btn">Refresh results</button>
+    <span class="live-status" id="live-status">Not fetched yet — works best when the dashboard is hosted online (see note below)</span>
+  </div>
+  <div class="cards" id="live-cards"></div>
+  <h2 style="font-size:15px">Confidence calibration</h2>
+  <p class="note" style="margin-bottom:12px">Do high-confidence predictions actually hit more often? Accuracy per confidence bucket (strict, decided matches only).</p>
+  <div class="calib" id="calib"></div>
+  <div id="live-list"></div>
+  <p class="live-src"><b style="color:var(--gold)">Tip:</b> the live feed and venue maps need the dashboard to be served over https — they are blocked when the file is opened directly from disk (file://). Host it free on Netlify Drop, GitHub Pages or Cloudflare Pages to enable them (and to open it on your phone / share a link). Source: openfootball/worldcup.json (public domain). Manual entries are stored locally in your browser and never leave this page.</p>
+</section>
+
+<section id="method" class="page">
+  <h2>How the model works</h2>
+  <p class="note">Every number in this dashboard traces back to four variables, each normalised to a 0–1 scale and combined with fixed weights.</p>
+  <div style="background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:22px;margin-bottom:26px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--gold)">Composite Score = (ELO × 0.45) + (Form × 0.25) + (xG Diff × 0.20) + (Squad Value × 0.10)</div>
+    <p style="color:var(--muted);font-size:13px;margin-top:10px">For teams with fewer than 5 matches of xG data (Iran, Cape Verde, Uzbekistan), xG is excluded and the weights are redistributed proportionally: ELO 56.25% · Form 31.25% · Squad 12.5%. Host nations U.S.A., Canada and Mexico receive +0.073, derived from the standard +100 ELO point home advantage used by professional models.</p>
+  </div>
+  <div class="method-block">
+    <h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:15px;color:var(--elo);margin-bottom:8px">1 · ELO rating — 45%</h3>
+    <p style="margin-bottom:10px">Current ELO ratings from eloratings.net, the strongest single predictor of international football outcomes. ELO adjusts after every match based on result, margin and opponent strength, so it implicitly captures a team's full competitive history. Normalised across the 48 qualified teams: <span style="font-family:'IBM Plex Mono',monospace">(ELO − min) / (max − min)</span>.</p>
+  </div>
+  <div class="method-block">
+    <h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:15px;color:var(--form);margin:20px 0 8px">2 · Recent form score — 25%</h3>
+    <p style="margin-bottom:10px">Built from each team's last 10 internationals (minimum 4 competitive matches; selection adjusted where needed). Each match produces a score from two components:</p>
+    <div style="background:var(--bg2);border-radius:8px;padding:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.9;margin-bottom:10px;color:var(--text)">
+      Component 1 = (Capped GD × 0.4 + Venue Adj × 0.4) × OW × Importance × Time Decay<br>
+      Component 2 = Base Score × OW² × Importance × Time Decay<br>
+      Match Score = Component 1 + Component 2
+    </div>
+    <ul style="padding-left:18px;line-height:1.8">
+      <li><b style="color:var(--text)">Capped GD</b> — goal difference capped at ±3 so blowouts don't dominate</li>
+      <li><b style="color:var(--text)">Base score</b> — Win 1, Draw 0.5, Loss 0, so draws never zero out</li>
+      <li><b style="color:var(--text)">Opponent weight (OW)</b> — opponent ELO ÷ 1500, squared in component 2; inverted (1/OW) for losses so losing to weak teams is punished harder</li>
+      <li><b style="color:var(--text)">Importance</b> — WC/Copa América 1.5, AFC Asian Cup 1.4, AFCON/Gold Cup 1.3, WC qualifier 1.2, Nations League 1.1, friendlies 0.7–0.8</li>
+      <li><b style="color:var(--text)">Venue adjustment</b> — away +0.1, home −0.1, neutral 0</li>
+      <li><b style="color:var(--text)">Time decay</b> — EXP(−0.1 × months ago); a match a year old keeps ~30% of its weight</li>
+    </ul>
+    <p style="margin-top:8px">The form score is the sum of all 10 match scores, then normalised across the 48 teams.</p>
+  </div>
+  <div class="method-block">
+    <h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:15px;color:var(--xg);margin:20px 0 8px">3 · xG differential — 20%</h3>
+    <p style="margin-bottom:10px">Average expected-goals difference per match over the same 10-match window: <span style="font-family:'IBM Plex Mono',monospace">AVG(xG for − xG against)</span>. xG measures the quality of chances created and conceded independent of results — it filters out finishing luck. No time decay or opponent weighting: chance quality is structurally stable and already partly self-adjusts for opposition. Data from Flashscore (Opta model). Matches without xG data are excluded from the average; teams with fewer than 5 data points are excluded from this variable entirely.</p>
+  </div>
+  <div class="method-block">
+    <h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:15px;color:var(--squad);margin:20px 0 8px">4 · Squad value — 10%</h3>
+    <p style="margin-bottom:10px">Total squad market value from Transfermarkt, normalised across the 48 teams. A proxy for overall squad quality and depth. Deliberately low-weighted because it correlates heavily with ELO. Team profiles also show average age (peak window 26–29), attack/defence value ratio and midfield share of total value as context.</p>
+  </div>
+  <div class="method-block">
+    <h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:15px;color:var(--gold);margin:20px 0 8px">Match predictions, confidence &amp; live tracking</h3>
+    <p style="margin-bottom:10px">The predicted winner is the team with the higher composite score; a gap below 0.08 is flagged "too close to call". The confidence score combines four signals: composite gap (40%), xG inclusion for both teams (25%), xG data quality (15%) and agreement with the betting market (20%). Confidence measures how reliable the prediction is — it is not a win probability.</p>
+    <p style="margin-bottom:10px">Live results are pulled from the openfootball public-domain dataset and compared automatically: a predicted winner that wins counts as correct, a draw counts as half credit (the same convention as the 2022 backtest), and "too close to call" matches are tracked separately.</p>
+    <p>Validation: ELO alone correctly predicted 54% of 2022 WC group matches (65% with half-credit draws), beating random chance (33%) and matching academic benchmarks. Venue coordinates on match cards were added during the dashboard build and are approximate stadium locations.</p>
+  </div>
+</section>
+</div>
+
+<div class="detail" id="detail" role="dialog" aria-modal="true">
+  <div class="detail-card">
+    <button class="close" data-close="detail">Close</button>
+    <h3 id="d-name"></h3>
+    <div id="d-meta" style="color:var(--muted);font-size:13px;margin-top:4px"></div>
+    <div class="stat-grid" id="d-stats"></div>
+    <div class="hist-title">Last 10 matches</div>
+    <table class="hist-table">
+      <thead><tr><th>Date</th><th></th><th>Opponent</th><th>Score</th><th>Type</th><th>Venue</th></tr></thead>
+      <tbody id="d-history"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="detail" id="match-detail" role="dialog" aria-modal="true">
+  <div class="detail-card">
+    <button class="close" data-close="match-detail">Close</button>
+    <h3 id="md-title" style="font-size:20px"></h3>
+    <div class="match-detail-meta" id="md-meta"></div>
+    <div class="md-pred" id="md-pred"></div>
+    <table class="md-compare">
+      <thead><tr><th></th><th>Rank</th><th>Composite</th><th>Form (W/D/L)</th><th>xG diff</th><th>Clean sheets</th></tr></thead>
+      <tbody id="md-compare"></tbody>
+    </table>
+    <div class="map-frame" id="md-map" role="img" aria-label="Venue map"></div>
+    <div class="map-note" id="md-mapnote"></div>
+  </div>
+</div>
+
+<script>
+const DATA = {"teams": {"Mexico": {"pool": "A", "composite": 0.6891, "elo": 0.6168, "form": 0.7926, "xg": 0.6447, "squad": 0.1146, "implied": 0.02, "form_raw": 9.2, "wdl": "7W / 3D / 0L", "history": [{"date": "05/06/26", "wdl": "W", "opp": "Serbia", "type": "Friendly", "venue": "Home", "score": "5-1"}, {"date": "31/05/26", "wdl": "W", "opp": "Australia", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "22/05/26", "wdl": "W", "opp": "Ghana", "type": "Friendly", "venue": "Home", "score": "2-0"}, {"date": "22/05/26", "wdl": "D", "opp": "Belgium", "type": "Friendly ", "venue": "Neutral", "score": "1-1"}, {"date": "28/03/26", "wdl": "D", "opp": "Portugal", "type": "Friendly ", "venue": "Home", "score": "0-0"}, {"date": "25/02/26", "wdl": "W", "opp": "Iceland", "type": "Friendly", "venue": "Home", "score": "4-0"}, {"date": "06/07/25", "wdl": "W", "opp": "U.S.A.", "type": "CONCACAF", "venue": "Away", "score": "2-1"}, {"date": "02/07/25", "wdl": "W", "opp": "Honduras", "type": "CONCACAF", "venue": "Neutral", "score": "1-0"}, {"date": "28/06/25", "wdl": "W", "opp": "Saudi Arabia", "type": "CONCACAF", "venue": "Neutral", "score": "2-0"}, {"date": "22/06/25", "wdl": "D", "opp": "Costa Rica", "type": "CONCACAF", "venue": "Neutral", "score": "0-0"}], "xg_diff_raw": 1.05, "g_diff": 1.5, "dq": 10, "clean_sheet": 0.7, "scoring": 0.8, "ad_ratio": 1.87, "mid_pct": 0.386, "age_flag": "Peak", "total_value": 191.8, "avg_value": 7.38, "avg_age": 27.9}, "South Africa": {"pool": "A", "composite": 0.2318, "elo": 0.1304, "form": 0.3, "xg": 0.4806, "squad": 0.0195, "implied": 0.002, "form_raw": 3.96, "wdl": "4W / 3D / 3L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "Jamaica", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "29/05/26", "wdl": "D", "opp": "Nicaragua", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "31/03/26", "wdl": "L", "opp": "Panama", "type": "Friendly", "venue": "Home", "score": "1-2"}, {"date": "27/03/26", "wdl": "D", "opp": "Panama", "type": "Friendly ", "venue": "Home", "score": "1-1"}, {"date": "04/01/26", "wdl": "L", "opp": "Cameroon", "type": "AFCON", "venue": "Neutral", "score": "1-2"}, {"date": "29/12/25", "wdl": "W", "opp": "Zimbabwe", "type": "AFCON", "venue": "Neutral", "score": "3-2"}, {"date": "26/12/25", "wdl": "L", "opp": "Egypt", "type": "AFCON", "venue": "Neutral", "score": "0-1"}, {"date": "22/12/25", "wdl": "W", "opp": "Angola", "type": "AFCON", "venue": "Neutral", "score": "2-1"}, {"date": "15/11/25", "wdl": "W", "opp": "Zambia", "type": "Friendly", "venue": "Home", "score": "3-1"}, {"date": "14/10/25", "wdl": "W", "opp": "Rwanda", "type": "WC qualifier", "venue": "Home", "score": "3-0"}], "xg_diff_raw": 0.46, "g_diff": 0.4, "dq": 8, "clean_sheet": 0.2, "scoring": 0.8, "ad_ratio": 1.03, "mid_pct": 0.151, "age_flag": "Peak", "total_value": 49.2, "avg_value": 1.89, "avg_age": 26.8}, "South Korea": {"pool": "A", "composite": 0.4277, "elo": 0.4579, "form": 0.3368, "xg": 0.6477, "squad": 0.0794, "implied": 0.005, "form_raw": 4.35, "wdl": "7W / 0D / 3L", "history": [{"date": "04/06/26", "wdl": "W", "opp": "El Salvador", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "31/05/26", "wdl": "W", "opp": "Trinidad and Tobago", "type": "Friendly", "venue": "Neutral", "score": "5-0"}, {"date": "31/03/26", "wdl": "L", "opp": "Austria", "type": "Friendly", "venue": "Away", "score": "0-1"}, {"date": "28/03/26", "wdl": "L", "opp": "Ivory Coast", "type": "Friendly", "venue": "Neutral", "score": "0-4"}, {"date": "18/11/25", "wdl": "W", "opp": "Ghana", "type": "Friendly ", "venue": "Home", "score": "1-0"}, {"date": "14/11/25", "wdl": "W", "opp": "Bolivia", "type": "Friendly", "venue": "Home", "score": "2-0"}, {"date": "15/07/25", "wdl": "L", "opp": "Japan", "type": "EAFF", "venue": "Home", "score": "0-1"}, {"date": "11/07/25", "wdl": "W", "opp": "Hong Kong", "type": "EAFF", "venue": "Home", "score": "2-0"}, {"date": "07/07/25", "wdl": "W", "opp": "China", "type": "EAFF", "venue": "Home", "score": "3-0"}, {"date": "10/06/25", "wdl": "W", "opp": "Kuwait", "type": "WC qualifier", "venue": "Home", "score": "4-0"}], "xg_diff_raw": 1.06, "g_diff": 1.2, "dq": 10, "clean_sheet": 0.7, "scoring": 0.7, "ad_ratio": 1.3, "mid_pct": 0.408, "age_flag": "Peak", "total_value": 139.1, "avg_value": 5.35, "avg_age": 28.1}, "Czechia": {"pool": "A", "composite": 0.4659, "elo": 0.4334, "form": 0.4982, "xg": 0.6755, "squad": 0.1122, "implied": 0.007, "form_raw": 6.07, "wdl": "5W / 4D / 1L", "history": [{"date": "05/06/26", "wdl": "W", "opp": "Guatemala", "type": "Friendly", "venue": "Neutral", "score": "3-1"}, {"date": "31/05/26", "wdl": "W", "opp": "Kosovo", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Denmark", "type": "WC play-off", "venue": "Home", "score": "2-2"}, {"date": "26/03/26", "wdl": "D", "opp": "Ireland", "type": "WC Play-off", "venue": "Home", "score": "2-2"}, {"date": "17/11/25", "wdl": "W", "opp": "Gibraltar", "type": "WC qualifier", "venue": "Home", "score": "6-0"}, {"date": "13/11/25", "wdl": "W", "opp": "San Marino", "type": "Friendly", "venue": "Home", "score": "1-0"}, {"date": "12/10/25", "wdl": "L", "opp": "Faroe Islands", "type": "WC qualifier", "venue": "Away", "score": "1-2"}, {"date": "09/10/25", "wdl": "D", "opp": "Croatia", "type": "WC qualifier", "venue": "Home", "score": "0-0"}, {"date": "08/09/25", "wdl": "D", "opp": "Saudi Arabia", "type": "Friendly", "venue": "Home", "score": "1-1"}, {"date": "05/09/25", "wdl": "W", "opp": "Montenegro", "type": "WC qualifier", "venue": "Away", "score": "2-0"}], "xg_diff_raw": 1.16, "g_diff": 1.1, "dq": 7, "clean_sheet": 0.4, "scoring": 0.9, "ad_ratio": 0.78, "mid_pct": 0.301, "age_flag": "Peak", "total_value": 188.2, "avg_value": 7.24, "avg_age": 27.6}, "Canada": {"pool": "B", "composite": 0.5389, "elo": 0.4986, "form": 0.4712, "xg": 0.5597, "squad": 0.1178, "implied": 0.01, "form_raw": 5.78, "wdl": "4W / 6D / 0L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "Ireland", "type": "Friendly", "venue": "Home", "score": "1-1"}, {"date": "02/06/26", "wdl": "W", "opp": "Uzbekistan", "type": "Friendly", "venue": "Home", "score": "2-0"}, {"date": "31/03/26", "wdl": "D", "opp": "Tunisia", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "28/03/26", "wdl": "D", "opp": "Iceland", "type": "Friendly", "venue": "Home", "score": "2-2"}, {"date": "18/11/25", "wdl": "W", "opp": "Venezuela", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "13/11/25", "wdl": "D", "opp": "Ecuador", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "29/06/25", "wdl": "D", "opp": "Guatemala", "type": "CONCACAF", "venue": "Neutral", "score": "1-1"}, {"date": "24/06/25", "wdl": "W", "opp": "El Salvador", "type": "CONCACAF", "venue": "Neutral", "score": "2-0"}, {"date": "21/06/25", "wdl": "D", "opp": "Cura\u00e7ao", "type": "CONCACAF", "venue": "Neutral", "score": "1-1"}, {"date": "17/06/25", "wdl": "W", "opp": "Honduras", "type": "CONCACAF", "venue": "Home", "score": "6-0"}], "xg_diff_raw": 0.74, "g_diff": 1.2, "dq": 10, "clean_sheet": 0.6, "scoring": 0.8, "ad_ratio": 1.1, "mid_pct": 0.251, "age_flag": "Peak", "total_value": 196.7, "avg_value": 7.87, "avg_age": 27.1}, "Bosnia": {"pool": "B", "composite": 0.3227, "elo": 0.2364, "form": 0.4151, "xg": 0.5187, "squad": 0.0878, "implied": 0.003, "form_raw": 5.18, "wdl": "3W / 6D / 1L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "Panama", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "29/05/26", "wdl": "D", "opp": "North Macedonia", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "31/03/26", "wdl": "D", "opp": "Italy", "type": "WC Play-off", "venue": "Neutral", "score": "1-1"}, {"date": "26/03/26", "wdl": "D", "opp": "Wales", "type": "WC Play-off", "venue": "Away", "score": "1-1"}, {"date": "18/10/25", "wdl": "D", "opp": "Austria", "type": "WC qualifier", "venue": "Away", "score": "1-1"}, {"date": "15/10/25", "wdl": "W", "opp": "Romania", "type": "WC qualifier", "venue": "Home", "score": "3-1"}, {"date": "12/10/25", "wdl": "W", "opp": "Malta", "type": "Friendly", "venue": "away", "score": "4-1"}, {"date": "09/10/25", "wdl": "D", "opp": "Cyprus", "type": "WC qualifier", "venue": "Away", "score": "2-2"}, {"date": "09/09/25", "wdl": "L", "opp": "Austria", "type": "WC qualifier", "venue": "Home", "score": "1-2"}, {"date": "06/09/25", "wdl": "W", "opp": "San Marino", "type": "WC qualifier", "venue": "Away", "score": "6-0"}], "xg_diff_raw": 0.59, "g_diff": 1, "dq": 7, "clean_sheet": 0.2, "scoring": 0.9, "ad_ratio": 1.02, "mid_pct": 0.166, "age_flag": "Peak", "total_value": 151.6, "avg_value": 5.83, "avg_age": 26.4}, "Qatar": {"pool": "B", "composite": 0.0413, "elo": 0, "form": 0, "xg": 0.2064, "squad": 0, "implied": 0.0005, "form_raw": 0.77, "wdl": "2W / 4D / 4L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "El Salvador", "type": "Friendly", "venue": "Neutral", "score": "0-0"}, {"date": "28/05/26", "wdl": "L", "opp": "Ireland", "type": "Friendly", "venue": "Away", "score": "0-1"}, {"date": "07/12/25", "wdl": "L", "opp": "Tunisia", "type": "Arab Cup", "venue": "Home", "score": "0-3"}, {"date": "04/12/25", "wdl": "D", "opp": "Syria", "type": "Arab Cup", "venue": "Home", "score": "1-1"}, {"date": "01/12/25", "wdl": "L", "opp": "Palestine", "type": "Arab Cup", "venue": "Home", "score": "0-1"}, {"date": "14/10/25", "wdl": "W", "opp": "U.A.E.", "type": "Arab Cup", "venue": "Home", "score": "2-1"}, {"date": "08/10/25", "wdl": "D", "opp": "Oman", "type": "Arab Cup", "venue": "Home", "score": "0-0"}, {"date": "03/09/25", "wdl": "D", "opp": "Bahrain", "type": "Friendly", "venue": "Home", "score": "2-2"}, {"date": "10/06/25", "wdl": "L", "opp": "Uzbekistan", "type": "WC qualifier", "venue": "away", "score": "0-3"}, {"date": "05/06/25", "wdl": "W", "opp": "Iran", "type": "WC qualifier", "venue": "Home", "score": "1-0"}], "xg_diff_raw": -0.53, "g_diff": -0.6, "dq": 9, "clean_sheet": 0.3, "scoring": 0.4, "ad_ratio": 5.91, "mid_pct": 0.117, "age_flag": "Too old", "total_value": 19.9, "avg_value": 0.77, "avg_age": 29.4}, "Switzerland": {"pool": "B", "composite": 0.5991, "elo": 0.6386, "form": 0.75, "xg": 0.5168, "squad": 0.2084, "implied": 0.02, "form_raw": 8.75, "wdl": "5W / 4D / 1L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "Australia", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "31/05/26", "wdl": "W", "opp": "Jordan", "type": "Friendly", "venue": "Home", "score": "4-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Norway", "type": "Friendly", "venue": "Away", "score": "0-0"}, {"date": "27/03/26", "wdl": "L", "opp": "Germany", "type": "Friendly", "venue": "Home", "score": "3-4"}, {"date": "18/11/25", "wdl": "D", "opp": "Kosovo", "type": "WC qualifier", "venue": "Away", "score": "1-1"}, {"date": "12/11/25", "wdl": "W", "opp": "Sweden", "type": "WC qualifier", "venue": "Home", "score": "4-1"}, {"date": "13/10/25", "wdl": "D", "opp": "Slovenia", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "10/10/25", "wdl": "W", "opp": "Sweden", "type": "WC qualifier", "venue": "Away", "score": "2-0"}, {"date": "08/09/25", "wdl": "W", "opp": "Slovenia", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "05/09/25", "wdl": "W", "opp": "Kosovo", "type": "WC qualifier", "venue": "Home", "score": "4-0"}], "xg_diff_raw": 0.59, "g_diff": 1.4, "dq": 10, "clean_sheet": 0.5, "scoring": 0.8, "ad_ratio": 1.7, "mid_pct": 0.411, "age_flag": "Peak", "total_value": 332.5, "avg_value": 12.79, "avg_age": 28.3}, "Brazil": {"pool": "C", "composite": 0.7183, "elo": 0.7745, "form": 0.6368, "xg": 0.7517, "squad": 0.6022, "implied": 0.091, "form_raw": 7.54, "wdl": "6W / 1D / 3L", "history": [{"date": "07/06/26", "wdl": "W", "opp": "Egypt", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "31/05/26", "wdl": "W", "opp": "Panama", "type": "Friendly", "venue": "Home", "score": "6-2"}, {"date": "31/03/26", "wdl": "W", "opp": "Croatia", "type": "Friendly", "venue": "Neutral", "score": "3-1"}, {"date": "26/03/26", "wdl": "L", "opp": "France", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "18/11/25", "wdl": "D", "opp": "Tunisia", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "15/11/25", "wdl": "W", "opp": "Senegal", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "14/10/25", "wdl": "L", "opp": "Japan", "type": "Kirin Challenge Cup", "venue": "Away", "score": "2-3"}, {"date": "10/10/25", "wdl": "W", "opp": "South Korea", "type": "Friendly", "venue": "Away", "score": "5-0"}, {"date": "09/09/25", "wdl": "L", "opp": "Bolivia", "type": "WC qualifier", "venue": "Away", "score": "0-1"}, {"date": "04/09/25", "wdl": "W", "opp": "Chile", "type": "WC qualifier", "venue": "Home", "score": "3-0"}], "xg_diff_raw": 1.43, "g_diff": 1.4, "dq": 10, "clean_sheet": 0.3, "scoring": 0.9, "ad_ratio": 2.38, "mid_pct": 0.173, "age_flag": "Too old", "total_value": 923.2, "avg_value": 35.51, "avg_age": 29.2}, "Morocco": {"pool": "C", "composite": 0.6268, "elo": 0.5516, "form": 0.8316, "xg": 0.6937, "squad": 0.3189, "implied": 0.024, "form_raw": 9.61, "wdl": "6W / 4D / 0L", "history": [{"date": "07/06/26", "wdl": "D", "opp": "Norway", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "02/06/26", "wdl": "W", "opp": "Madagascar", "type": "Friendly", "venue": "Home", "score": "4-0"}, {"date": "31/03/26", "wdl": "W", "opp": "Paraguay", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "27/03/26", "wdl": "D", "opp": "Ecuador", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "14/01/26", "wdl": "D", "opp": "Nigeria", "type": "AFCON", "venue": "Home", "score": "0-0"}, {"date": "09/01/26", "wdl": "W", "opp": "Cameroon", "type": "AFCON", "venue": "Home", "score": "2-0"}, {"date": "04/01/26", "wdl": "W", "opp": "Tanzania", "type": "AFCON", "venue": "Home", "score": "1-0"}, {"date": "29/12/25", "wdl": "W", "opp": "Zambia", "type": "AFCON", "venue": "Home", "score": "3-0"}, {"date": "26/12/25", "wdl": "D", "opp": "Mali", "type": "AFCON", "venue": "Home", "score": "1-1"}, {"date": "21/12/25", "wdl": "W", "opp": "Comoros", "type": "AFCON", "venue": "Home", "score": "2-0"}], "xg_diff_raw": 1.22, "g_diff": 1.3, "dq": 10, "clean_sheet": 0.6, "scoring": 0.9, "ad_ratio": 0.77, "mid_pct": 0.381, "age_flag": "Peak", "total_value": 498.3, "avg_value": 19.17, "avg_age": 26.4}, "Haiti": {"pool": "C", "composite": 0.2368, "elo": 0.1726, "form": 0.3455, "xg": 0.3519, "squad": 0.024, "implied": 0.001, "form_raw": 4.44, "wdl": "4W / 3D / 3L", "history": [{"date": "06/06/26", "wdl": "L", "opp": "Peru", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "03/06/26", "wdl": "W", "opp": "New Zealand", "type": "Friendly", "venue": "Neutral", "score": "4-0"}, {"date": "31/03/26", "wdl": "D", "opp": "Iceland", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "28/03/26", "wdl": "L", "opp": "Tunisia", "type": "Friendly", "venue": "Neutral", "score": "0-1"}, {"date": "18/11/25", "wdl": "W", "opp": "Nicaragua", "type": "WC qualifier", "venue": "Neutral", "score": "2-0"}, {"date": "13/11/25", "wdl": "W", "opp": "Costa Rica", "type": "WC qualifier", "venue": "Neutral", "score": "1-0"}, {"date": "13/10/25", "wdl": "L", "opp": "Honduras", "type": "WC qualifier", "venue": "Away", "score": "0-3"}, {"date": "09/10/25", "wdl": "W", "opp": "Nicaragua", "type": "WC qualifier", "venue": "Away", "score": "3-0"}, {"date": "09/09/25", "wdl": "D", "opp": "Costa Rica", "type": "WC qualifier", "venue": "Away", "score": "3-3"}, {"date": "05/09/25", "wdl": "D", "opp": "Honduras", "type": "WC qualifier", "venue": "Neutral", "score": "0-0"}], "xg_diff_raw": -0.01, "g_diff": 0.5, "dq": 7, "clean_sheet": 0.5, "scoring": 0.7, "ad_ratio": 3.73, "mid_pct": 0.351, "age_flag": "Peak", "total_value": 55.9, "avg_value": 2.15, "avg_age": 27.6}, "Scotland": {"pool": "C", "composite": 0.4314, "elo": 0.4905, "form": 0.4427, "xg": 0.4501, "squad": 0.1002, "implied": 0.005, "form_raw": 5.48, "wdl": "5W / 1D / 4L", "history": [{"date": "06/06/26", "wdl": "W", "opp": "Bolivia", "type": "Friendly", "venue": "Neutral", "score": "4-0"}, {"date": "30/05/26", "wdl": "W", "opp": "Cura\u00e7ao", "type": "Friendly", "venue": "Home", "score": "4-1"}, {"date": "31/03/26", "wdl": "L", "opp": "Ivory Coast", "type": "Friendly", "venue": "Neutral", "score": "0-1"}, {"date": "28/03/26", "wdl": "L", "opp": "Japan", "type": "Friendly", "venue": "Home", "score": "0-1"}, {"date": "18/11/25", "wdl": "W", "opp": "Denmark", "type": "WC qualifier", "venue": "Home", "score": "4-2"}, {"date": "15/11/25", "wdl": "L", "opp": "Greece", "type": "WC qualifier", "venue": "Away", "score": "2-3"}, {"date": "12/10/25", "wdl": "W", "opp": "Belarus", "type": "WC qualifier", "venue": "Home", "score": "2-1"}, {"date": "09/09/25", "wdl": "D", "opp": "Denmark", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "09/06/25", "wdl": "W", "opp": "Liechtenstein", "type": "Friendly", "venue": "Away", "score": "4-0"}, {"date": "06/06/25", "wdl": "L", "opp": "Iceland", "type": "Friendly", "venue": "Home", "score": "1-3"}], "xg_diff_raw": 0.35, "g_diff": 0.9, "dq": 9, "clean_sheet": 0.3, "scoring": 0.7, "ad_ratio": 0.72, "mid_pct": 0.452, "age_flag": "Too old", "total_value": 170.2, "avg_value": 6.55, "avg_age": 29.2}, "U.S.A.": {"pool": "D", "composite": 0.4304, "elo": 0.4144, "form": 0.2502, "xg": 0.4198, "squad": 0.2438, "implied": 0.024, "form_raw": 3.43, "wdl": "5W / 1D / 4L", "history": [{"date": "06/06/26", "wdl": "L", "opp": "Germany", "type": "Friendly", "venue": "Home", "score": "1-2"}, {"date": "31/05/26", "wdl": "W", "opp": "Senegal", "type": "Friendly", "venue": "Home", "score": "3-2"}, {"date": "31/03/26", "wdl": "L", "opp": "Portugal", "type": "Friendly", "venue": "Home", "score": "0-2"}, {"date": "28/03/26", "wdl": "L", "opp": "Belgium", "type": "Friendly", "venue": "Home", "score": "2-5"}, {"date": "18/11/25", "wdl": "W", "opp": "Uruguay", "type": "Friendly", "venue": "Home", "score": "5-1"}, {"date": "15/11/25", "wdl": "W", "opp": "Paraguay", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "06/07/25", "wdl": "L", "opp": "Mexico", "type": "CONCACAF", "venue": "Home", "score": "1-2"}, {"date": "02/07/25", "wdl": "W", "opp": "Guatemala", "type": "CONCACAF", "venue": "Home", "score": "2-1"}, {"date": "29/06/25", "wdl": "D", "opp": "Costa Rica", "type": "CONCACAF", "venue": "Home", "score": "2-2"}, {"date": "22/06/25", "wdl": "W", "opp": "Haiti", "type": "CONCACAF", "venue": "Home", "score": "2-1"}], "xg_diff_raw": 0.24, "g_diff": 0.1, "dq": 10, "clean_sheet": 0, "scoring": 0.9, "ad_ratio": 1.48, "mid_pct": 0.37, "age_flag": "Peak", "total_value": 385.6, "avg_value": 14.83, "avg_age": 26.9}, "Paraguay": {"pool": "D", "composite": 0.4102, "elo": 0.5611, "form": 0.3673, "xg": 0.2845, "squad": 0.0891, "implied": 0.005, "form_raw": 4.68, "wdl": "5W / 1D / 4L", "history": [{"date": "06/06/26", "wdl": "W", "opp": "Nicaragua", "type": "Friendly", "venue": "Home", "score": "4-0"}, {"date": "31/03/26", "wdl": "L", "opp": "Morocco", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "27/03/26", "wdl": "W", "opp": "Greece", "type": "Friendly", "venue": "Away", "score": "1-0"}, {"date": "18/11/25", "wdl": "W", "opp": "Mexico", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "15/11/25", "wdl": "L", "opp": "U.S.A.", "type": "Friendly", "venue": "Away", "score": "1-2"}, {"date": "14/10/25", "wdl": "L", "opp": "South Korea", "type": "Friendly", "venue": "Away", "score": "0-2"}, {"date": "09/09/25", "wdl": "W", "opp": "Peru", "type": "WC qualifier", "venue": "Away", "score": "1-0"}, {"date": "04/09/25", "wdl": "D", "opp": "Ecuador", "type": "WC qualifier", "venue": "Home", "score": "0-0"}, {"date": "10/06/25", "wdl": "L", "opp": "Brazil", "type": "WC qualifier", "venue": "Away", "score": "0-1"}, {"date": "05/06/25", "wdl": "W", "opp": "Uruguay", "type": "WC qualifier", "venue": "Home", "score": "2-0"}], "xg_diff_raw": -0.25, "g_diff": 0.4, "dq": 8, "clean_sheet": 0.5, "scoring": 0.7, "ad_ratio": 1.09, "mid_pct": 0.563, "age_flag": "Peak", "total_value": 153.7, "avg_value": 5.91, "avg_age": 29}, "Australia": {"pool": "D", "composite": 0.3657, "elo": 0.4837, "form": 0.3295, "xg": 0.3089, "squad": 0.0383, "implied": 0.003, "form_raw": 4.27, "wdl": "6W / 1D / 3L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "Switzerland", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "30/05/26", "wdl": "L", "opp": "Mexico", "type": "Friendly", "venue": "Neutral", "score": "0-1"}, {"date": "31/03/26", "wdl": "W", "opp": "Cura\u00e7ao", "type": "Friendly", "venue": "Home", "score": "5-1"}, {"date": "27/03/26", "wdl": "W", "opp": "Cameroon", "type": "Friendly", "venue": "Home", "score": "1-0"}, {"date": "18/11/25", "wdl": "L", "opp": "Colombia", "type": "Friendly", "venue": "Neutral", "score": "0-3"}, {"date": "14/11/25", "wdl": "L", "opp": "Venezuela", "type": "Friendly", "venue": "Neutral", "score": "0-1"}, {"date": "10/06/25", "wdl": "W", "opp": "Saudi Arabia", "type": "WC qualifier", "venue": "Away", "score": "2-1"}, {"date": "05/06/25", "wdl": "W", "opp": "Japan", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "25/03/25", "wdl": "W", "opp": "China", "type": "WC qualifier", "venue": "Away", "score": "2-0"}, {"date": "20/03/25", "wdl": "W", "opp": "Indonesia", "type": "WC qualifier", "venue": "Home", "score": "5-1"}], "xg_diff_raw": -0.16, "g_diff": 0.8, "dq": 10, "clean_sheet": 0.3, "scoring": 0.7, "ad_ratio": 0.51, "mid_pct": 0.272, "age_flag": "Peak", "total_value": 77.5, "avg_value": 2.98, "avg_age": 27.4}, "Turkey": {"pool": "D", "composite": 0.6788, "elo": 0.6658, "form": 1, "xg": 0.4948, "squad": 0.3025, "implied": 0.02, "form_raw": 11.4, "wdl": "8W / 1D / 1L", "history": [{"date": "07/06/26", "wdl": "W", "opp": "Venezuela", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "01/06/26", "wdl": "W", "opp": "North Macedonia", "type": "Friendly", "venue": "Home", "score": "4-0"}, {"date": "31/03/26", "wdl": "W", "opp": "Kosovo", "type": "WC Play-off", "venue": "Away", "score": "1-0"}, {"date": "26/03/26", "wdl": "W", "opp": "Romania", "type": "WC Play-off", "venue": "Home", "score": "1-0"}, {"date": "18/11/25", "wdl": "D", "opp": "Spain", "type": "WC qualifier", "venue": "Away", "score": "2-2"}, {"date": "15/11/25", "wdl": "W", "opp": "Bulgaria", "type": "WC qualifier", "venue": "Home", "score": "2-0"}, {"date": "14/10/25", "wdl": "W", "opp": "Georgia", "type": "WC qualifier", "venue": "Home", "score": "4-1"}, {"date": "11/10/25", "wdl": "W", "opp": "Bulgaria", "type": "WC qualifier", "venue": "Away", "score": "6-1"}, {"date": "07/09/25", "wdl": "L", "opp": "Spain", "type": "WC qualifier", "venue": "Home", "score": "0-6"}, {"date": "04/09/25", "wdl": "W", "opp": "Georgia", "type": "WC qualifier", "venue": "Away", "score": "3-2"}], "xg_diff_raw": 0.51, "g_diff": 1.2, "dq": 10, "clean_sheet": 0.4, "scoring": 0.9, "ad_ratio": 1.59, "mid_pct": 0.414, "age_flag": "Peak", "total_value": 473.7, "avg_value": 18.22, "avg_age": 27.7}, "Germany": {"pool": "E", "composite": 0.7428, "elo": 0.6943, "form": 0.7939, "xg": 0.8503, "squad": 0.618, "implied": 0.067, "form_raw": 9.21, "wdl": "8W / 0D / 2L", "history": [{"date": "06/06/26", "wdl": "W", "opp": "U.S.A.", "type": "Friendly", "venue": "Away", "score": "2-1"}, {"date": "31/05/26", "wdl": "W", "opp": "Finland", "type": "Friendly", "venue": "Home", "score": "4-0"}, {"date": "30/03/26", "wdl": "W", "opp": "Ghana", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "27/03/26", "wdl": "W", "opp": "Switzerland", "type": "Friendly", "venue": "Away", "score": "4-3"}, {"date": "17/11/25", "wdl": "W", "opp": "Slovakia", "type": "WC qualifier", "venue": "Home", "score": "6-0"}, {"date": "14/11/25", "wdl": "W", "opp": "Luxembourg", "type": "WC qualifier", "venue": "Away", "score": "2-0"}, {"date": "13/10/25", "wdl": "W", "opp": "Northern Ireland", "type": "WC qualifier", "venue": "Away", "score": "1-0"}, {"date": "10/10/25", "wdl": "W", "opp": "Luxembourg", "type": "WC qualifier", "venue": "Home", "score": "4-0"}, {"date": "04/09/25", "wdl": "L", "opp": "Slovakia", "type": "WC qualifier", "venue": "Away", "score": "0-2"}, {"date": "08/06/25", "wdl": "L", "opp": "France", "type": "UEFA Nations League", "venue": "Home", "score": "0-2"}], "xg_diff_raw": 1.78, "g_diff": 1.6, "dq": 10, "clean_sheet": 0.5, "scoring": 0.8, "ad_ratio": 1.07, "mid_pct": 0.506, "age_flag": "Peak", "total_value": 947, "avg_value": 36.42, "avg_age": 28.1}, "Cura\u00e7ao": {"pool": "E", "composite": 0.117, "elo": 0.0177, "form": 0.1433, "xg": 0.3643, "squad": 0.0039, "implied": 0.0005, "form_raw": 2.29, "wdl": "4W / 3D / 3L", "history": [{"date": "07/06/26", "wdl": "W", "opp": "Aruba", "type": "Friendly", "venue": "Neutral", "score": "4-0"}, {"date": "30/05/26", "wdl": "L", "opp": "Scotland", "type": "Friendly", "venue": "Away", "score": "1-4"}, {"date": "31/03/26", "wdl": "L", "opp": "Australia", "type": "Friendly", "venue": "Away", "score": "1-5"}, {"date": "27/03/26", "wdl": "L", "opp": "China", "type": "Friendly", "venue": "Neutral", "score": "0-2"}, {"date": "18/11/25", "wdl": "D", "opp": "Jamaica", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "13/11/25", "wdl": "W", "opp": "Bermuda", "type": "WC qualifier", "venue": "Away", "score": "7-0"}, {"date": "14/10/25", "wdl": "D", "opp": "Trinidad and Tobago", "type": "WC qualifier", "venue": "Home", "score": "1-1"}, {"date": "10/10/25", "wdl": "W", "opp": "Jamaica", "type": "WC qualifier", "venue": "Home", "score": "2-0"}, {"date": "09/09/25", "wdl": "W", "opp": "Bermuda", "type": "WC qualifier", "venue": "Home", "score": "3-2"}, {"date": "05/09/25", "wdl": "D", "opp": "Trinidad and Tobago", "type": "WC qualifier", "venue": "Away", "score": "0-0"}], "xg_diff_raw": 0.04, "g_diff": 0.5, "dq": 9, "clean_sheet": 0.5, "scoring": 0.7, "ad_ratio": 0.64, "mid_pct": 0.27, "age_flag": "Peak", "total_value": 25.8, "avg_value": 0.99, "avg_age": 28}, "Ivory Coast": {"pool": "E", "composite": 0.5176, "elo": 0.3723, "form": 0.759, "xg": 0.6342, "squad": 0.3348, "implied": 0.007, "form_raw": 8.84, "wdl": "7W / 1D / 2L", "history": [{"date": "04/06/26", "wdl": "W", "opp": "France", "type": "Friendly", "venue": "Away", "score": "2-1"}, {"date": "31/03/26", "wdl": "W", "opp": "Scotland", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "26/03/26", "wdl": "W", "opp": "South Korea", "type": "Friendly", "venue": "Neutral", "score": "4-0"}, {"date": "10/01/26", "wdl": "L", "opp": "Egypt", "type": "AFCON", "venue": "Neutral", "score": "2-3"}, {"date": "06/01/26", "wdl": "W", "opp": "Burkina Faso", "type": "AFCON", "venue": "Neutral", "score": "3-0"}, {"date": "31/12/25", "wdl": "W", "opp": "Gabon", "type": "AFCON", "venue": "Neutral", "score": "3-2"}, {"date": "28/12/25", "wdl": "D", "opp": "Cameroon", "type": "AFCON", "venue": "Neutral", "score": "1-1"}, {"date": "24/12/25", "wdl": "W", "opp": "Mozambique", "type": "AFCON", "venue": "Neutral", "score": "1-0"}, {"date": "18/11/25", "wdl": "W", "opp": "Oman", "type": "Friendly", "venue": "Away", "score": "2-0"}, {"date": "14/11/25", "wdl": "L", "opp": "Saudi Arabia", "type": "Friendly", "venue": "Away", "score": "0-1"}], "xg_diff_raw": 1.01, "g_diff": 1.1, "dq": 8, "clean_sheet": 0.5, "scoring": 0.9, "ad_ratio": 1.84, "mid_pct": 0.121, "age_flag": "Too young", "total_value": 522.1, "avg_value": 20.08, "avg_age": 25.9}, "Ecuador": {"pool": "E", "composite": 0.5848, "elo": 0.7024, "form": 0.5608, "xg": 0.5265, "squad": 0.2325, "implied": 0.01, "form_raw": 6.73, "wdl": "4W / 6D / 0L", "history": [{"date": "07/06/26", "wdl": "W", "opp": "Guatemala", "type": "Friendly", "venue": "Neutral", "score": "3-0"}, {"date": "30/05/26", "wdl": "W", "opp": "Saudi Arabia", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Netherlands", "type": "Friendly", "venue": "Away", "score": "1-1"}, {"date": "27/03/26", "wdl": "D", "opp": "Morocco", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "18/11/25", "wdl": "W", "opp": "New Zealand", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "13/11/25", "wdl": "D", "opp": "Canada", "type": "Friendly", "venue": "Away", "score": "0-0"}, {"date": "09/09/25", "wdl": "W", "opp": "Argentina", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "04/09/25", "wdl": "D", "opp": "Paraguay", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "10/06/25", "wdl": "D", "opp": "Peru", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "05/06/25", "wdl": "D", "opp": "Brazil", "type": "WC qualifier", "venue": "Home", "score": "0-0"}], "xg_diff_raw": 0.62, "g_diff": 0.7, "dq": 10, "clean_sheet": 0.7, "scoring": 0.6, "ad_ratio": 0.28, "mid_pct": 0.346, "age_flag": "Peak", "total_value": 368.7, "avg_value": 14.18, "avg_age": 26.1}, "Netherlands": {"pool": "F", "composite": 0.6741, "elo": 0.716, "form": 0.6149, "xg": 0.7294, "squad": 0.5228, "implied": 0.048, "form_raw": 7.31, "wdl": "6W / 3D / 1L", "history": [{"date": "08/06/26", "wdl": "W", "opp": "Uzbekistan", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "03/06/26", "wdl": "L", "opp": "Algeria", "type": "Friendly", "venue": "Home", "score": "0-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Ecuador", "type": "Friendly", "venue": "Home", "score": "1-1"}, {"date": "27/03/26", "wdl": "W", "opp": "Norway", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "17/11/25", "wdl": "W", "opp": "Lithuania", "type": "WC qualifier", "venue": "Home", "score": "4-0"}, {"date": "14/11/25", "wdl": "D", "opp": "Poland", "type": "WC qualifier", "venue": "Away", "score": "1-1"}, {"date": "12/10/25", "wdl": "W", "opp": "Finland", "type": "WC qualifier", "venue": "Home", "score": "4-0"}, {"date": "09/10/25", "wdl": "W", "opp": "Malta", "type": "WC qualifier", "venue": "Away", "score": "4-0"}, {"date": "07/09/25", "wdl": "W", "opp": "Lithuania", "type": "WC qualifier", "venue": "Away", "score": "3-2"}, {"date": "04/09/25", "wdl": "D", "opp": "Poland", "type": "WC qualifier", "venue": "Home", "score": "1-1"}], "xg_diff_raw": 1.35, "g_diff": 1.4, "dq": 10, "clean_sheet": 0.3, "scoring": 0.9, "ad_ratio": 0.71, "mid_pct": 0.307, "age_flag": "Peak", "total_value": 804.2, "avg_value": 30.93, "avg_age": 27.7}, "Japan": {"pool": "F", "composite": 0.6271, "elo": 0.659, "form": 0.7334, "xg": 0.6525, "squad": 0.1673, "implied": 0.024, "form_raw": 8.57, "wdl": "10W / 0D / 0L", "history": [{"date": "31/05/26", "wdl": "W", "opp": "Iceland", "type": "Kirin Challenge Cup", "venue": "Home", "score": "1-0"}, {"date": "31/03/26", "wdl": "W", "opp": "England", "type": "Friendly", "venue": "Away", "score": "1-0"}, {"date": "28/03/26", "wdl": "W", "opp": "Scotland", "type": "Friendly", "venue": "Away", "score": "1-0"}, {"date": "18/11/25", "wdl": "W", "opp": "Bolivia", "type": "Kirin Challenge Cup", "venue": "Home", "score": "3-0"}, {"date": "14/11/25", "wdl": "W", "opp": "Ghana", "type": "Kirin Challenge Cup", "venue": "Home", "score": "2-0"}, {"date": "14/10/25", "wdl": "W", "opp": "Brazil", "type": "Kirin Challenge Cup", "venue": "Home", "score": "3-2"}, {"date": "15/07/25", "wdl": "W", "opp": "South Korea", "type": "EAFF", "venue": "Away", "score": "1-0"}, {"date": "12/07/25", "wdl": "W", "opp": "China", "type": "EAFF", "venue": "Neutral", "score": "2-0"}, {"date": "08/07/25", "wdl": "W", "opp": "Hong Kong", "type": "EAFF", "venue": "Neutral", "score": "6-1"}, {"date": "10/06/25", "wdl": "W", "opp": "Indonesia", "type": "WC qualifier", "venue": "Neutral", "score": "6-1"}], "xg_diff_raw": 1.07, "g_diff": 2.2, "dq": 10, "clean_sheet": 0.7, "scoring": 1, "ad_ratio": 2.22, "mid_pct": 0.247, "age_flag": "Peak", "total_value": 270.9, "avg_value": 10.42, "avg_age": 27.8}, "Sweden": {"pool": "F", "composite": 0.3173, "elo": 0.3954, "form": 0.2611, "xg": 0.2417, "squad": 0.2574, "implied": 0.005, "form_raw": 3.55, "wdl": "2W / 3D / 5L", "history": [{"date": "04/06/26", "wdl": "D", "opp": "Greece", "type": "Friendly", "venue": "Home", "score": "2-2"}, {"date": "01/06/26", "wdl": "L", "opp": "Norway", "type": "Friendly", "venue": "Away", "score": "1-3"}, {"date": "31/03/26", "wdl": "W", "opp": "Poland", "type": "WC Play-off", "venue": "Home", "score": "3-2"}, {"date": "26/03/26", "wdl": "W", "opp": "Ukraine", "type": "WC play-off", "venue": "Neutral", "score": "3-1"}, {"date": "18/11/25", "wdl": "D", "opp": "Slovenia", "type": "WC qualifier", "venue": "Home", "score": "1-1"}, {"date": "15/11/25", "wdl": "L", "opp": "Switzerland", "type": "WC qualifier", "venue": "Away", "score": "1-4"}, {"date": "13/10/25", "wdl": "L", "opp": "Kosovo", "type": "WC qualifier", "venue": "Home", "score": "0-1"}, {"date": "10/10/25", "wdl": "L", "opp": "Switzerland", "type": "WC qualifier", "venue": "Home", "score": "0-2"}, {"date": "08/09/25", "wdl": "L", "opp": "Kosovo", "type": "WC qualifier", "venue": "Away", "score": "0-2"}, {"date": "05/09/25", "wdl": "D", "opp": "Slovenia", "type": "WC qualifier", "venue": "Away", "score": "2-2"}], "xg_diff_raw": -0.4, "g_diff": -0.7, "dq": 10, "clean_sheet": 0, "scoring": 0.7, "ad_ratio": 2.0, "mid_pct": 0.268, "age_flag": "Peak", "total_value": 406.1, "avg_value": 15.62, "avg_age": 27.6}, "Tunisia": {"pool": "F", "composite": 0.27, "elo": 0.2812, "form": 0.2768, "xg": 0.3547, "squad": 0.0333, "implied": 0.003, "form_raw": 3.71, "wdl": "3W / 4D / 3L", "history": [{"date": "06/06/26", "wdl": "L", "opp": "Belgium", "type": "Friendly", "venue": "Away", "score": "0-5"}, {"date": "01/06/26", "wdl": "L", "opp": "Austria", "type": "Friendly", "venue": "Away", "score": "0-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Canada", "type": "Friendly", "venue": "Away", "score": "0-0"}, {"date": "28/03/26", "wdl": "W", "opp": "Haiti", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "03/01/26", "wdl": "D", "opp": "Mali", "type": "AFCON", "venue": "Neutral", "score": "1-1"}, {"date": "30/12/25", "wdl": "D", "opp": "Tanzania", "type": "AFCON", "venue": "Neutral", "score": "1-1"}, {"date": "27/12/25", "wdl": "L", "opp": "Nigeria", "type": "AFCON", "venue": "Neutral", "score": "2-3"}, {"date": "23/12/25", "wdl": "W", "opp": "Uganda", "type": "AFCON", "venue": "Neutral", "score": "3-1"}, {"date": "07/12/25", "wdl": "W", "opp": "Qatar", "type": "Arab Cup", "venue": "Away", "score": "3-0"}, {"date": "04/12/25", "wdl": "D", "opp": "Palestine", "type": "Arab Cup", "venue": "Neutral", "score": "2-2"}], "xg_diff_raw": 0.0, "g_diff": -0.1, "dq": 9, "clean_sheet": 0.3, "scoring": 0.7, "ad_ratio": 1.05, "mid_pct": 0.4, "age_flag": "Peak", "total_value": 70.0, "avg_value": 2.69, "avg_age": 26.7}, "Belgium": {"pool": "G", "composite": 0.7238, "elo": 0.6427, "form": 0.8433, "xg": 0.9431, "squad": 0.3517, "implied": 0.024, "form_raw": 9.74, "wdl": "7W / 3D / 0L", "history": [{"date": "06/06/26", "wdl": "W", "opp": "Tunisia", "type": "Friendly", "venue": "Home", "score": "5-0"}, {"date": "02/06/26", "wdl": "W", "opp": "Croatia", "type": "Friendly", "venue": "Away", "score": "2-0"}, {"date": "31/03/26", "wdl": "D", "opp": "Mexico", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "28/03/26", "wdl": "W", "opp": "U.S.A.", "type": "Friendly", "venue": "Away", "score": "5-2"}, {"date": "18/11/25", "wdl": "W", "opp": "Liechtenstein", "type": "WC qualifier", "venue": "Home", "score": "7-0"}, {"date": "15/11/25", "wdl": "D", "opp": "Kazakhstan", "type": "WC qualifier", "venue": "Away", "score": "1-1"}, {"date": "13/10/25", "wdl": "W", "opp": "Wales", "type": "WC qualifier", "venue": "Away", "score": "4-2"}, {"date": "10/10/25", "wdl": "D", "opp": "North Macedonia", "type": "WC qualifier", "venue": "Home", "score": "0-0"}, {"date": "07/09/25", "wdl": "W", "opp": "Kazakhstan", "type": "WC qualifier", "venue": "Home", "score": "6-0"}, {"date": "04/09/25", "wdl": "W", "opp": "Liechtenstein", "type": "WC qualifier", "venue": "Away", "score": "6-0"}], "xg_diff_raw": 2.12, "g_diff": 3.1, "dq": 10, "clean_sheet": 0.6, "scoring": 0.9, "ad_ratio": 1.01, "mid_pct": 0.322, "age_flag": "Peak", "total_value": 547.5, "avg_value": 21.06, "avg_age": 27.6}, "Egypt": {"pool": "G", "composite": 0.3873, "elo": 0.3736, "form": 0.6435, "xg": 0.259, "squad": 0.0644, "implied": 0.005, "form_raw": 7.61, "wdl": "5W / 3D / 2L", "history": [{"date": "07/06/26", "wdl": "L", "opp": "Brazil", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "28/05/26", "wdl": "W", "opp": "Russia", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "31/03/26", "wdl": "D", "opp": "Spain", "type": "Friendly", "venue": "Away", "score": "0-0"}, {"date": "27/03/26", "wdl": "W", "opp": "Saudi Arabia", "type": "Friendly", "venue": "Away", "score": "4-0"}, {"date": "17/01/26", "wdl": "D", "opp": "Nigeria", "type": "AFCON", "venue": "Neutral", "score": "0-0"}, {"date": "14/01/26", "wdl": "L", "opp": "Senegal", "type": "AFCON", "venue": "Neutral", "score": "0-1"}, {"date": "10/01/26", "wdl": "W", "opp": "Ivory Coast", "type": "AFCOB", "venue": "Neutral", "score": "3-2"}, {"date": "05/01/26", "wdl": "W", "opp": "Benin", "type": "AFCON", "venue": "Neutral", "score": "3-1"}, {"date": "29/12/25", "wdl": "D", "opp": "Angola", "type": "AFCON", "venue": "Neutral", "score": "0-0"}, {"date": "26/12/25", "wdl": "W", "opp": "South Africa", "type": "AFCON", "venue": "Neutral", "score": "1-0"}], "xg_diff_raw": -0.34, "g_diff": 0.7, "dq": 10, "clean_sheet": 0.6, "scoring": 0.6, "ad_ratio": 10.11, "mid_pct": 0.131, "age_flag": "Too old", "total_value": 116.5, "avg_value": 4.48, "avg_age": 29.1}, "Iran": {"pool": "G", "composite": 0.4104, "elo": 0.4769, "form": 0.4517, "xg": 0, "squad": 0.0081, "implied": 0.005, "form_raw": 7.43, "wdl": "7W / 1D / 2L", "history": [{"date": "10/11/22", "wdl": "W", "opp": "Nicaragua", "type": "Friendly", "venue": "Home", "score": "1-0"}, {"date": "27/09/22", "wdl": "D", "opp": "Senegal", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "23/09/22", "wdl": "W", "opp": "Uruguay", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "12/06/22", "wdl": "L", "opp": "Algeria", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "29/03/22", "wdl": "W", "opp": "Lebanon", "type": "WC qualifier", "venue": "Home", "score": "2-0"}, {"date": "24/03/22", "wdl": "L", "opp": "South Korea", "type": "WC qualifier", "venue": "away", "score": "0-2"}, {"date": "01/02/22", "wdl": "W", "opp": "U.A.E", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "27/01/22", "wdl": "W", "opp": "Iraq", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "16/11/21", "wdl": "W", "opp": "Syria", "type": "WC qualifier", "venue": "Neutral", "score": "3-0"}, {"date": "11/11/21", "wdl": "W", "opp": "Lebanon", "type": "WC qualifier", "venue": "Away", "score": "2-1"}], "xg_diff_raw": null, "g_diff": 1.2, "dq": 1, "clean_sheet": 0.5, "scoring": 0.7, "ad_ratio": 2.5, "mid_pct": 0.183, "age_flag": "Too old", "total_value": 32.0, "avg_value": 1.23, "avg_age": 30.4}, "New Zealand": {"pool": "G", "composite": 0.1219, "elo": 0.1916, "form": 0.0218, "xg": 0.1461, "squad": 0.0096, "implied": 0.001, "form_raw": 1.0, "wdl": "4W / 0D / 6L", "history": [{"date": "06/06/26", "wdl": "L", "opp": "England", "type": "Friendly", "venue": "Neutral", "score": "0-1"}, {"date": "03/06/26", "wdl": "L", "opp": "Haiti", "type": "Friendly", "venue": "Neutral", "score": "0-4"}, {"date": "30/03/26", "wdl": "W", "opp": "Chile", "type": "Friendly", "venue": "Home", "score": "4-1"}, {"date": "27/03/26", "wdl": "L", "opp": "Finland", "type": "Friendly", "venue": "Home", "score": "0-2"}, {"date": "18/11/25", "wdl": "L", "opp": "Ecuador", "type": "Friendly", "venue": "Neutral", "score": "0-2"}, {"date": "15/11/25", "wdl": "L", "opp": "Colombia", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "10/06/25", "wdl": "L", "opp": "Ukraine", "type": "Canadian Shield", "venue": "Neutral", "score": "1-2"}, {"date": "07/06/25", "wdl": "W", "opp": "Ivory Coast", "type": "Canadian Shield", "venue": "Neutral", "score": "1-0"}, {"date": "24/03/25", "wdl": "W", "opp": "New Caledonia", "type": "WC play-off", "venue": "Home", "score": "3-0"}, {"date": "21/03/25", "wdl": "W", "opp": "Fiji", "type": "WC Play-off", "venue": "Home", "score": "7-0"}], "xg_diff_raw": -0.74, "g_diff": 0.3, "dq": 5, "clean_sheet": 0.3, "scoring": 0.6, "ad_ratio": 0.78, "mid_pct": 0.342, "age_flag": "Peak", "total_value": 34.4, "avg_value": 1.32, "avg_age": 28.1}, "Spain": {"pool": "H", "composite": 0.969, "elo": 1, "form": 0.9562, "xg": 1, "squad": 0.8, "implied": 0.167, "form_raw": 10.94, "wdl": "7W / 3D / 0L", "history": [{"date": "09/06/26", "wdl": "W", "opp": "Peru", "type": "Friendly", "venue": "Neutral", "score": "3-1"}, {"date": "04/06/26", "wdl": "D", "opp": "Iraq", "type": "Friendly", "venue": "Home", "score": "1-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Egypt", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "27/03/26", "wdl": "W", "opp": "Serbia", "type": "Friendly", "venue": "Home", "score": "3-0"}, {"date": "18/11/25", "wdl": "D", "opp": "Turkey", "type": "WC qualifier", "venue": "Home", "score": "2-2"}, {"date": "14/11/25", "wdl": "W", "opp": "Georgia", "type": "WC qualifier", "venue": "Away", "score": "4-0"}, {"date": "14/10/25", "wdl": "W", "opp": "Bulgaria", "type": "WC qualifier", "venue": "Home", "score": "4-0"}, {"date": "11/10/25", "wdl": "W", "opp": "Georgia", "type": "WC qualifier", "venue": "Home", "score": "2-0"}, {"date": "07/09/25", "wdl": "W", "opp": "Turkey", "type": "WC qualifier", "venue": "Away", "score": "6-0"}, {"date": "04/09/25", "wdl": "W", "opp": "Bulgaria", "type": "WC qualifier", "venue": "Away", "score": "3-0"}], "xg_diff_raw": 2.32, "g_diff": 2.4, "dq": 10, "clean_sheet": 0.7, "scoring": 0.9, "ad_ratio": 1.45, "mid_pct": 0.344, "age_flag": "Peak", "total_value": 1220, "avg_value": 47.03, "avg_age": 26.8}, "Cape Verde": {"pool": "H", "composite": 0.2716, "elo": 0.2133, "form": 0.4758, "xg": 0, "squad": 0.023, "implied": 0.001, "form_raw": 5.83, "wdl": "5W / 4D / 1L", "history": [{"date": "06/06/26", "wdl": "W", "opp": "Bermuda", "type": "Friendly", "venue": "Neutral", "score": "3-0"}, {"date": "31/05/26", "wdl": "W", "opp": "Serbia", "type": "Friendly", "venue": "Neutral", "score": "3-0"}, {"date": "30/03/26", "wdl": "D", "opp": "Finland", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "27/03/26", "wdl": "L", "opp": "Chile", "type": "Friendly", "venue": "Neutral", "score": "2-4"}, {"date": "17/11/25", "wdl": "D", "opp": "Egypt", "type": "Al Ain  Cup", "venue": "Neutral", "score": "1-1"}, {"date": "13/11/25", "wdl": "D", "opp": "Iran", "type": "Al Ain  Cup", "venue": "Neutral", "score": "0-0"}, {"date": "13/10/25", "wdl": "W", "opp": "Eswatini", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "08/10/25", "wdl": "D", "opp": "Libya", "type": "WC qualifier", "venue": "Away", "score": "3-3"}, {"date": "09/09/25", "wdl": "W", "opp": "Cameroon", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "04/09/25", "wdl": "W", "opp": "Mauritius", "type": "WC qualifier", "venue": "Neutral", "score": "2-0"}], "xg_diff_raw": null, "g_diff": 1, "dq": 2, "clean_sheet": 0.6, "scoring": 0.9, "ad_ratio": 0.31, "mid_pct": 0.176, "age_flag": "Too old", "total_value": 54.5, "avg_value": 2.1, "avg_age": 29.7}, "Saudi Arabia": {"pool": "H", "composite": 0.2275, "elo": 0.2106, "form": 0.1369, "xg": 0.4856, "squad": 0.0138, "implied": 0.002, "form_raw": 2.23, "wdl": "3W / 2D / 5L", "history": [{"date": "10/06/26", "wdl": "D", "opp": "Senegal", "type": "Friendly", "venue": "Neutral", "score": "0-0"}, {"date": "06/06/26", "wdl": "W", "opp": "Puerto Rico", "type": "Friendly", "venue": "Neutral", "score": "3-0"}, {"date": "30/05/26", "wdl": "L", "opp": "Ecuador", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "31/03/26", "wdl": "L", "opp": "Serbia", "type": "Friendly", "venue": "Away", "score": "1-2"}, {"date": "27/03/26", "wdl": "L", "opp": "Egypt", "type": "Friendly", "venue": "Home", "score": "0-4"}, {"date": "18/12/25", "wdl": "D", "opp": "U.A.E.", "type": "Arab Cup", "venue": "Neutral", "score": "0-0"}, {"date": "15/12/25", "wdl": "L", "opp": "Jordan", "type": "Arab Cup", "venue": "Neutral", "score": "0-1"}, {"date": "11/12/25", "wdl": "W", "opp": "Palestine", "type": "Arab Cup", "venue": "Neutral", "score": "2-1"}, {"date": "08/12/25", "wdl": "L", "opp": "Morocco", "type": "Arab Cup", "venue": "Neutral", "score": "0-1"}, {"date": "05/12/25", "wdl": "W", "opp": "Comoros", "type": "Arab Cup", "venue": "Neutral", "score": "3-1"}], "xg_diff_raw": 0.47, "g_diff": -0.2, "dq": 10, "clean_sheet": 0.3, "scoring": 0.5, "ad_ratio": 0.39, "mid_pct": 0.235, "age_flag": "Peak", "total_value": 40.7, "avg_value": 1.56, "avg_age": 28.5}, "Uruguay": {"pool": "H", "composite": 0.4629, "elo": 0.6399, "form": 0.3056, "xg": 0.3794, "squad": 0.2262, "implied": 0.015, "form_raw": 4.02, "wdl": "4W / 4D / 2L", "history": [{"date": "31/03/26", "wdl": "D", "opp": "Algeria", "type": "Friendly", "venue": "Neutral", "score": "0-0"}, {"date": "27/03/26", "wdl": "D", "opp": "England", "type": "Friendly", "venue": "Away", "score": "1-1"}, {"date": "18/11/25", "wdl": "L", "opp": "U.S.A.", "type": "Friendly", "venue": "Away", "score": "1-5"}, {"date": "15/11/25", "wdl": "D", "opp": "Mexico", "type": "Friendly", "venue": "Away", "score": "0-0"}, {"date": "13/10/25", "wdl": "W", "opp": "Uzbekistan", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "10/10/25", "wdl": "W", "opp": "Dominican Republic", "type": "Friendly", "venue": "Neutral", "score": "1-0"}, {"date": "09/09/25", "wdl": "D", "opp": "Chile", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "04/09/25", "wdl": "W", "opp": "Peru", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "10/06/25", "wdl": "W", "opp": "Venezuela", "type": "WC qualifier", "venue": "Home", "score": "2-0"}, {"date": "05/06/25", "wdl": "L", "opp": "Paraguay", "type": "WC qualifier", "venue": "Away", "score": "0-2"}], "xg_diff_raw": 0.09, "g_diff": 0.1, "dq": 10, "clean_sheet": 0.6, "scoring": 0.6, "ad_ratio": 0.41, "mid_pct": 0.539, "age_flag": "Peak", "total_value": 359.3, "avg_value": 13.82, "avg_age": 28.8}, "France": {"pool": "I", "composite": 0.8505, "elo": 0.8723, "form": 0.8436, "xg": 0.7353, "squad": 1, "implied": 0.143, "form_raw": 9.74, "wdl": "8W / 1D / 1L", "history": [{"date": "08/06/26", "wdl": "W", "opp": "Northern Ireland", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "04/06/26", "wdl": "L", "opp": "Ivory Coast", "type": "Friendly", "venue": "Home", "score": "1-2"}, {"date": "29/03/26", "wdl": "W", "opp": "Colombia", "type": "Friendly", "venue": "Neutral", "score": "3-1"}, {"date": "26/03/26", "wdl": "W", "opp": "Brazil", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "16/11/25", "wdl": "W", "opp": "Azerbaijan", "type": "WC qualifier", "venue": "Away", "score": "3-1"}, {"date": "13/11/25", "wdl": "W", "opp": "Ukraine", "type": "WC qualifier", "venue": "Home", "score": "4-0"}, {"date": "13/10/25", "wdl": "D", "opp": "Iceland", "type": "WC qualifier", "venue": "Away", "score": "2-2"}, {"date": "10/10/25", "wdl": "W", "opp": "Azerbaijan", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "09/09/25", "wdl": "W", "opp": "Iceland", "type": "WC qualifier", "venue": "Home", "score": "2-1"}, {"date": "05/09/25", "wdl": "W", "opp": "Ukraine", "type": "WC qualifier", "venue": "Neutral", "score": "2-0"}], "xg_diff_raw": 1.37, "g_diff": 1.6, "dq": 10, "clean_sheet": 0.3, "scoring": 1, "ad_ratio": 1.86, "mid_pct": 0.205, "age_flag": "Peak", "total_value": 1520, "avg_value": 58.58, "avg_age": 27}, "Senegal": {"pool": "I", "composite": 0.6259, "elo": 0.5965, "form": 0.8397, "xg": 0.5851, "squad": 0.3054, "implied": 0.015, "form_raw": 9.7, "wdl": "7W / 2D / 1L", "history": [{"date": "10/06/26", "wdl": "D", "opp": "Saudi Arabia", "type": "Friendly", "venue": "Neutral", "score": "0-0"}, {"date": "31/05/26", "wdl": "L", "opp": "U.S.A.", "type": "Friendly", "venue": "Away", "score": "2-3"}, {"date": "31/03/26", "wdl": "W", "opp": "Gambia", "type": "Friendly", "venue": "Home", "score": "3-1"}, {"date": "28/03/26", "wdl": "W", "opp": "Peru", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "14/01/26", "wdl": "W", "opp": "Egypt", "type": "AFCON", "venue": "Neutral", "score": "1-0"}, {"date": "09/01/26", "wdl": "W", "opp": "Mali", "type": "AFCON", "venue": "Neutral", "score": "1-0"}, {"date": "03/01/26", "wdl": "W", "opp": "Sudan", "type": "AFCON", "venue": "Neutral", "score": "3-1"}, {"date": "30/12/25", "wdl": "W", "opp": "Benin", "type": "AFCON", "venue": "Neutral", "score": "3-0"}, {"date": "27/12/25", "wdl": "D", "opp": "DR Congo", "type": "AFCON", "venue": "Neutral", "score": "1-1"}, {"date": "23/12/25", "wdl": "W", "opp": "Botswana", "type": "AFCON", "venue": "Neutral", "score": "3-0"}], "xg_diff_raw": 0.83, "g_diff": 1.3, "dq": 9, "clean_sheet": 0.6, "scoring": 0.9, "ad_ratio": 2.51, "mid_pct": 0.329, "age_flag": "Peak", "total_value": 478.1, "avg_value": 18.39, "avg_age": 27.1}, "Iraq": {"pool": "I", "composite": 0.2635, "elo": 0.2527, "form": 0.3864, "xg": 0.2653, "squad": 0.0008, "implied": 0.002, "form_raw": 4.88, "wdl": "5W / 2D / 3L", "history": [{"date": "10/06/26", "wdl": "L", "opp": "Venezuela", "type": "Friendly", "venue": "Neutral", "score": "0-2"}, {"date": "04/06/26", "wdl": "D", "opp": "Spain", "type": "Friendly", "venue": "Away", "score": "1-1"}, {"date": "29/05/26", "wdl": "W", "opp": "Andorra", "type": "Friendly", "venue": "Home", "score": "1-0"}, {"date": "31/03/26", "wdl": "W", "opp": "Bolivia", "type": "WC Play-off", "venue": "Neutral", "score": "2-1"}, {"date": "12/12/25", "wdl": "L", "opp": "Jordan", "type": "Arab Cup", "venue": "Neutral", "score": "0-1"}, {"date": "09/12/25", "wdl": "L", "opp": "Algeria", "type": "Arab Cup", "venue": "Neutral", "score": "0-2"}, {"date": "06/12/25", "wdl": "W", "opp": "Sudan", "type": "Arab Cup", "venue": "Neutral", "score": "2-0"}, {"date": "03/12/25", "wdl": "W", "opp": "Bahrain", "type": "Arab Cup", "venue": "Neutral", "score": "2-1"}, {"date": "18/11/25", "wdl": "W", "opp": "U.A.E.", "type": "WC qualifier", "venue": "Home", "score": "2-1"}, {"date": "13/11/25", "wdl": "D", "opp": "U.A.E.", "type": "WC qualifier", "venue": "Away", "score": "1-1"}], "xg_diff_raw": -0.32, "g_diff": 0.1, "dq": 8, "clean_sheet": 0.2, "scoring": 0.7, "ad_ratio": 1.94, "mid_pct": 0.267, "age_flag": "Peak", "total_value": 21.2, "avg_value": 0.81, "avg_age": 26.9}, "Norway": {"pool": "I", "composite": 0.6701, "elo": 0.6698, "form": 0.7103, "xg": 0.7654, "squad": 0.38, "implied": 0.028, "form_raw": 8.32, "wdl": "6W / 3D / 1L", "history": [{"date": "07/06/26", "wdl": "D", "opp": "Morocco", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "01/06/26", "wdl": "W", "opp": "Sweden", "type": "Friendly", "venue": "Home", "score": "3-1"}, {"date": "31/03/26", "wdl": "D", "opp": "Switzerland", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "27/03/26", "wdl": "L", "opp": "Netherlands", "type": "Friendly", "venue": "Away", "score": "1-2"}, {"date": "16/11/25", "wdl": "W", "opp": "Italy", "type": "WC qualifier", "venue": "Away", "score": "4-1"}, {"date": "13/11/25", "wdl": "W", "opp": "Estonia", "type": "WC qualifier", "venue": "Home", "score": "4-1"}, {"date": "14/10/25", "wdl": "D", "opp": "New Zealand", "type": "Friendly", "venue": "Home", "score": "1-1"}, {"date": "11/10/25", "wdl": "W", "opp": "Israel", "type": "WC qualifier", "venue": "Home", "score": "5-0"}, {"date": "09/09/25", "wdl": "W", "opp": "Moldova", "type": "WC qualifier", "venue": "Home", "score": "11-1"}, {"date": "04/09/25", "wdl": "W", "opp": "Finland", "type": "Friendly", "venue": "Home", "score": "1-0"}], "xg_diff_raw": 1.48, "g_diff": 2.3, "dq": 10, "clean_sheet": 0.3, "scoring": 0.9, "ad_ratio": 3.83, "mid_pct": 0.221, "age_flag": "Peak", "total_value": 589.9, "avg_value": 22.69, "avg_age": 26.8}, "Argentina": {"pool": "J", "composite": 0.8016, "elo": 0.9429, "form": 0.7654, "xg": 0.6752, "squad": 0.5084, "implied": 0.091, "form_raw": 8.91, "wdl": "9W / 1D / 0L", "history": [{"date": "10/06/26", "wdl": "W", "opp": "Iceland", "type": "Friendly", "venue": "Neutral", "score": "3-1"}, {"date": "07/06/26", "wdl": "W", "opp": "Honduras", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "31/03/26", "wdl": "W", "opp": "Zambia", "type": "Friendly", "venue": "Home", "score": "5-0"}, {"date": "27/03/26", "wdl": "W", "opp": "Mauritania", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "14/11/25", "wdl": "W", "opp": "Angola", "type": "Friendly", "venue": "Away", "score": "2-0"}, {"date": "14/10/25", "wdl": "W", "opp": "Puerto Rico", "type": "Friendly", "venue": "Neutral", "score": "6-0"}, {"date": "04/09/25", "wdl": "W", "opp": "Venezuela", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "10/06/25", "wdl": "D", "opp": "Colombia", "type": "WC qualifier", "venue": "Home", "score": "1-1"}, {"date": "05/06/25", "wdl": "W", "opp": "Chile", "type": "WC qualifier", "venue": "Away", "score": "1-0"}, {"date": "25/03/25", "wdl": "W", "opp": "Brazil", "type": "WC qualifier", "venue": "Home", "score": "4-1"}], "xg_diff_raw": 1.15, "g_diff": 2.6, "dq": 9, "clean_sheet": 0.7, "scoring": 1, "ad_ratio": 2.37, "mid_pct": 0.424, "age_flag": "Peak", "total_value": 782.5, "avg_value": 31.3, "avg_age": 28.1}, "Algeria": {"pool": "J", "composite": 0.5265, "elo": 0.4769, "form": 0.8357, "xg": 0.436, "squad": 0.158, "implied": 0.007, "form_raw": 9.66, "wdl": "7W / 2D / 1L", "history": [{"date": "10/06/26", "wdl": "W", "opp": "Bolivia", "type": "Friendly", "venue": "Neutral", "score": "4-0"}, {"date": "31/03/26", "wdl": "D", "opp": "Uruguay", "type": "Friendly", "venue": "Neutral", "score": "0-0"}, {"date": "27/03/26", "wdl": "W", "opp": "Guatemala", "type": "Friendly", "venue": "Neutral", "score": "7-0"}, {"date": "10/01/26", "wdl": "L", "opp": "Nigeria", "type": "AFCON", "venue": "Neutral", "score": "0-2"}, {"date": "06/01/26", "wdl": "W", "opp": "DR Congo", "type": "AFCON", "venue": "Neutral", "score": "1-0"}, {"date": "31/12/25", "wdl": "W", "opp": "Equatorial Guinea", "type": "AFCON", "venue": "Neutral", "score": "3-1"}, {"date": "28/12/25", "wdl": "W", "opp": "Burkina Faso", "type": "AFCON", "venue": "Neutral", "score": "1-0"}, {"date": "24/12/25", "wdl": "W", "opp": "Sudan", "type": "AFCON", "venue": "Neutral", "score": "3-0"}, {"date": "12/12/25", "wdl": "D", "opp": "U.A.E.", "type": "Arab Cup", "venue": "Neutral", "score": "1-1"}, {"date": "09/12/25", "wdl": "W", "opp": "Iraq", "type": "Arab Cup", "venue": "Neutral", "score": "2-0"}], "xg_diff_raw": 0.3, "g_diff": 1.8, "dq": 8, "clean_sheet": 0.7, "scoring": 0.8, "ad_ratio": 1.27, "mid_pct": 0.381, "age_flag": "Peak", "total_value": 256.9, "avg_value": 9.88, "avg_age": 26.9}, "Austria": {"pool": "J", "composite": 0.5518, "elo": 0.5557, "form": 0.5564, "xg": 0.7392, "squad": 0.1482, "implied": 0.012, "form_raw": 6.69, "wdl": "7W / 1D / 1L", "history": [{"date": "01/06/26", "wdl": "W", "opp": "Tunisia", "type": "Friendly", "venue": "Home", "score": "1-0"}, {"date": "31/03/26", "wdl": "W", "opp": "South Korea", "type": "Friendly", "venue": "Home", "score": "1-0"}, {"date": "27/03/26", "wdl": "W", "opp": "Ghana", "type": "Friendly", "venue": "Home", "score": "5-1"}, {"date": "18/11/25", "wdl": "D", "opp": "Bosnia", "type": "WC qualifier", "venue": "Home", "score": "1-1"}, {"date": "15/11/25", "wdl": "W", "opp": "Cyprus", "type": "WC qualifier", "venue": "Away", "score": "2-0"}, {"date": "12/10/25", "wdl": "L", "opp": "Romania", "type": "WC qualifier", "venue": "Away", "score": "0-1"}, {"date": "09/10/25", "wdl": "W", "opp": "San Marino", "type": "WC qualifier", "venue": "Home", "score": "10-0"}, {"date": "09/09/25", "wdl": "W", "opp": "Bosnia", "type": "WC qualifier", "venue": "Away", "score": "2-1"}, {"date": "06/09/25", "wdl": "W", "opp": "Cyprus", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "10/06/25", "wdl": "W", "opp": "San Marino", "type": "WC qualifier", "venue": "Away", "score": "4-0"}], "xg_diff_raw": 1.38, "g_diff": 2.3, "dq": 10, "clean_sheet": 0.6, "scoring": 0.9, "ad_ratio": 0.18, "mid_pct": 0.455, "age_flag": "Peak", "total_value": 242.2, "avg_value": 9.69, "avg_age": 28.6}, "Jordan": {"pool": "J", "composite": 0.3271, "elo": 0.3519, "form": 0.3873, "xg": 0.3597, "squad": 0.0, "implied": 0.002, "form_raw": 4.89, "wdl": "5W / 2D / 3L", "history": [{"date": "08/06/26", "wdl": "L", "opp": "Colombia", "type": "Friendly", "venue": "Neutral", "score": "0-2"}, {"date": "31/05/26", "wdl": "L", "opp": "Switzerland", "type": "Friendly", "venue": "Away", "score": "1-4"}, {"date": "31/03/26", "wdl": "D", "opp": "Nigeria", "type": "Four Nation ", "venue": "Neutral", "score": "2-2"}, {"date": "27/03/26", "wdl": "D", "opp": "Costa Rica", "type": "Four Nation ", "venue": "Neutral", "score": "2-2"}, {"date": "18/12/25", "wdl": "L", "opp": "Morocco", "type": "Arab Cup", "venue": "Neutral", "score": "2-3"}, {"date": "15/12/25", "wdl": "W", "opp": "Saudi Arabia", "type": "Arab Cup", "venue": "Neutral", "score": "1-0"}, {"date": "12/12/25", "wdl": "W", "opp": "Iraq", "type": "Arab Cup", "venue": "Neutral", "score": "1-0"}, {"date": "09/12/25", "wdl": "W", "opp": "Egypt", "type": "Arab Cup", "venue": "Neutral", "score": "3-0"}, {"date": "06/12/25", "wdl": "W", "opp": "Kuwait", "type": "Arab Cup", "venue": "Neutral", "score": "3-1"}, {"date": "03/12/25", "wdl": "W", "opp": "U.A.E.", "type": "Arab Cup", "venue": "Neutral", "score": "2-1"}], "xg_diff_raw": 0.02, "g_diff": 0.2, "dq": 8, "clean_sheet": 0.33, "scoring": 0.89, "ad_ratio": 3.06, "mid_pct": 0.129, "age_flag": "Peak", "total_value": 20, "avg_value": 0.8, "avg_age": 28.8}, "Portugal": {"pool": "K", "composite": 0.7653, "elo": 0.7717, "form": 0.6974, "xg": 0.8885, "squad": 0.66, "implied": 0.091, "form_raw": 8.19, "wdl": "7W / 2D / 1L", "history": [{"date": "10/06/26", "wdl": "W", "opp": "Nigeria", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "06/06/26", "wdl": "W", "opp": "Chile", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "31/03/26", "wdl": "W", "opp": "U.S.A.", "type": "Friendly", "venue": "Away", "score": "2-0"}, {"date": "28/03/26", "wdl": "D", "opp": "Mexico", "type": "Friendly", "venue": "Away", "score": "0-0"}, {"date": "16/11/25", "wdl": "W", "opp": "Armenia", "type": "WC qualifier", "venue": "Home", "score": "9-1"}, {"date": "13/11/25", "wdl": "L", "opp": "Ireland", "type": "WC qualifier", "venue": "Away", "score": "0-2"}, {"date": "14/10/25", "wdl": "D", "opp": "Hungary", "type": "WC qualifier", "venue": "Home", "score": "2-2"}, {"date": "11/10/25", "wdl": "W", "opp": "Ireland", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "09/09/25", "wdl": "W", "opp": "Hungary", "type": "WC qualifier", "venue": "Away", "score": "3-2"}, {"date": "06/09/25", "wdl": "W", "opp": "Armenia", "type": "WC qualifier", "venue": "Away", "score": "5-0"}], "xg_diff_raw": 1.92, "g_diff": 1.7, "dq": 10, "clean_sheet": 0.4, "scoring": 0.8, "ad_ratio": 0.66, "mid_pct": 0.413, "age_flag": "Peak", "total_value": 1010, "avg_value": 38.67, "avg_age": 28}, "DR Congo": {"pool": "K", "composite": 0.4061, "elo": 0.3139, "form": 0.599, "xg": 0.5342, "squad": 0.0826, "implied": 0.003, "form_raw": 7.14, "wdl": "5W / 3D / 2L", "history": [{"date": "09/06/26", "wdl": "L", "opp": "Chile", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "03/06/26", "wdl": "D", "opp": "Denmark", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "31/03/26", "wdl": "W", "opp": "Jamaica", "type": "WC Play-off", "venue": "Neutral", "score": "1-0"}, {"date": "25/03/26", "wdl": "W", "opp": "Bermuda", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "06/01/26", "wdl": "L", "opp": "Algeria", "type": "AFCON", "venue": "Neutral", "score": "0-1"}, {"date": "30/12/25", "wdl": "W", "opp": "Botswana", "type": "AFCON", "venue": "Neutral", "score": "3-0"}, {"date": "27/12/25", "wdl": "D", "opp": "Senegal", "type": "AFCON", "venue": "Neutral", "score": "1-1"}, {"date": "23/12/25", "wdl": "W", "opp": "Benin", "type": "AFCON", "venue": "Neutral", "score": "1-0"}, {"date": "16/11/25", "wdl": "D", "opp": "Nigeria", "type": "WC qualifier", "venue": "Neutral", "score": "1-1"}, {"date": "13/11/25", "wdl": "W", "opp": "Cameroon", "type": "WC qualifier", "venue": "Neutral", "score": "1-0"}], "xg_diff_raw": 0.65, "g_diff": 0.6, "dq": 7, "clean_sheet": 0.6, "scoring": 0.8, "ad_ratio": 1.5, "mid_pct": 0.414, "age_flag": "Too old", "total_value": 143.9, "avg_value": 5.53, "avg_age": 29.1}, "Uzbekistan": {"pool": "K", "composite": 0.3283, "elo": 0.3981, "form": 0.3167, "xg": 0, "squad": 0.0436, "implied": 0.003, "form_raw": 4.14, "wdl": "5W / 2D / 3L", "history": [{"date": "08/06/26", "wdl": "L", "opp": "Netherlands", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "01/06/26", "wdl": "L", "opp": "Canada", "type": "Friendly", "venue": "Away", "score": "0-2"}, {"date": "30/03/26", "wdl": "D", "opp": "Venezuela", "type": "Friendly", "venue": "Home", "score": "0-0"}, {"date": "27/03/26", "wdl": "W", "opp": "Gabon", "type": "Friendly", "venue": "Home", "score": "3-1"}, {"date": "18/11/25", "wdl": "D", "opp": "Iran", "type": "Al Ain  Cup", "venue": "Neutral", "score": "0-0"}, {"date": "14/11/25", "wdl": "W", "opp": "Egypt", "type": "Al Ain  Cup", "venue": "Neutral", "score": "2-0"}, {"date": "13/10/25", "wdl": "L", "opp": "Uruguay", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "08/09/25", "wdl": "W", "opp": "Iran", "type": "CAFA", "venue": "Home", "score": "1-0"}, {"date": "05/09/25", "wdl": "W", "opp": "Kyrgyzstan", "type": "CAFA", "venue": "Home", "score": "4-0"}, {"date": "02/09/25", "wdl": "W", "opp": "Turkmenistan", "type": "CAFA", "venue": "Home", "score": "2-1"}], "xg_diff_raw": null, "g_diff": 0.6, "dq": 3, "clean_sheet": 0.5, "scoring": 0.7, "ad_ratio": 0.35, "mid_pct": 0.092, "age_flag": "Peak", "total_value": 85.3, "avg_value": 3.28, "avg_age": 28.5}, "Colombia": {"pool": "K", "composite": 0.6304, "elo": 0.7622, "form": 0.6021, "xg": 0.5901, "squad": 0.1883, "implied": 0.024, "form_raw": 7.17, "wdl": "6W / 2D / 2L", "history": [{"date": "08/06/26", "wdl": "W", "opp": "Jordan", "type": "Friendly", "venue": "Neutral", "score": "2-0"}, {"date": "01/06/26", "wdl": "W", "opp": "Costa Rica", "type": "Friendly", "venue": "Home", "score": "3-1"}, {"date": "29/03/26", "wdl": "L", "opp": "France", "type": "Friendly", "venue": "Neutral", "score": "1-3"}, {"date": "26/03/26", "wdl": "L", "opp": "Croatia", "type": "Friendly", "venue": "Neutral", "score": "1-2"}, {"date": "18/11/25", "wdl": "W", "opp": "Australia", "type": "Friendly", "venue": "Neutral", "score": "3-0"}, {"date": "15/11/25", "wdl": "W", "opp": "New Zealand", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "09/09/25", "wdl": "W", "opp": "Venezuela", "type": "WC qualifier", "venue": "Away", "score": "6-3"}, {"date": "04/09/25", "wdl": "W", "opp": "Bolivia", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "10/06/25", "wdl": "D", "opp": "Argentina", "type": "WC qualifier", "venue": "Away", "score": "1-1"}, {"date": "06/06/25", "wdl": "D", "opp": "Peru", "type": "WC qualifier", "venue": "Neutral", "score": "0-0"}], "xg_diff_raw": 0.85, "g_diff": 1.1, "dq": 10, "clean_sheet": 0.4, "scoring": 0.9, "ad_ratio": 2.2, "mid_pct": 0.223, "age_flag": "Too old", "total_value": 302.4, "avg_value": 11.63, "avg_age": 30.1}, "England": {"pool": "L", "composite": 0.8447, "elo": 0.8193, "form": 0.826, "xg": 0.9011, "squad": 0.8933, "implied": 0.111, "form_raw": 3.0, "wdl": "4W / 3D / 3L", "history": [{"date": "26/09/22", "wdl": "D", "opp": "Germany", "type": "UEFA Nations League", "venue": "Home", "score": "3-3"}, {"date": "23/09/22", "wdl": "L", "opp": "Italy", "type": "UEFA Nations League", "venue": "Away", "score": "0-1"}, {"date": "14/06/22", "wdl": "L", "opp": "Hungary", "type": "UEFA Nations League", "venue": "Home", "score": "0-4"}, {"date": "11/06/22", "wdl": "D", "opp": "Italy", "type": "UEFA Nations League", "venue": "Home", "score": "0-0"}, {"date": "07/06/22", "wdl": "D", "opp": "Germany", "type": "UEFA Nations League", "venue": "away", "score": "1-1"}, {"date": "04/06/22", "wdl": "L", "opp": "Hungary", "type": "UEFA Nations League", "venue": "away", "score": "0-1"}, {"date": "29/03/22", "wdl": "W", "opp": "Ivory Coast", "type": "Friendly", "venue": "Home", "score": "3-0"}, {"date": "26/03/22", "wdl": "W", "opp": "Switserland", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "15/11/21", "wdl": "W", "opp": "San Marino", "type": "WC qualifier", "venue": "Away", "score": "10-0"}, {"date": "12/11/21", "wdl": "W", "opp": "Albania", "type": "WC qualifier", "venue": "Home", "score": "5-0"}], "xg_diff_raw": 1.96, "g_diff": 2.2, "dq": 10, "clean_sheet": 0.8, "scoring": 0.9, "ad_ratio": 0.98, "mid_pct": 0.405, "age_flag": "Peak", "total_value": 1360, "avg_value": 52.43, "avg_age": 27.2}, "Croatia": {"pool": "L", "composite": 0.5845, "elo": 0.6671, "form": 0.5238, "xg": 0.6444, "squad": 0.2449, "implied": 0.02, "form_raw": 6.34, "wdl": "7W / 1D / 2L", "history": [{"date": "07/06/26", "wdl": "W", "opp": "Slovenia", "type": "Friendly", "venue": "Home", "score": "2-1"}, {"date": "02/06/26", "wdl": "L", "opp": "Belgium", "type": "Friendly", "venue": "Home", "score": "0-2"}, {"date": "31/03/26", "wdl": "L", "opp": "Brazil", "type": "Friendly", "venue": "Neutral", "score": "1-3"}, {"date": "26/03/26", "wdl": "W", "opp": "Colombia", "type": "Friendly", "venue": "Neutral", "score": "2-1"}, {"date": "17/11/25", "wdl": "W", "opp": "Montenegro", "type": "WC qualifier", "venue": "Away", "score": "3-2"}, {"date": "14/11/25", "wdl": "W", "opp": "Faroe Islands", "type": "WC qualifier", "venue": "Home", "score": "3-1"}, {"date": "12/10/25", "wdl": "W", "opp": "Gibraltar", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "09/10/25", "wdl": "D", "opp": "Czechia", "type": "WC qualifier", "venue": "Away", "score": "0-0"}, {"date": "08/09/25", "wdl": "W", "opp": "Montenegro", "type": "WC qualifier", "venue": "Home", "score": "4-0"}, {"date": "05/09/25", "wdl": "W", "opp": "Faroe Islands", "type": "WC qualifier", "venue": "Away", "score": "1-0"}], "xg_diff_raw": 1.04, "g_diff": 0.9, "dq": 10, "clean_sheet": 0.4, "scoring": 0.8, "ad_ratio": 0.23, "mid_pct": 0.346, "age_flag": "Peak", "total_value": 387.3, "avg_value": 14.9, "avg_age": 28.3}, "Ghana": {"pool": "L", "composite": 0.0854, "elo": 0.1209, "form": 0.0668, "xg": 0, "squad": 0.1431, "implied": 0.001, "form_raw": 1.48, "wdl": "3W / 2D / 5L", "history": [{"date": "02/06/26", "wdl": "D", "opp": "Wales", "type": "Friendly", "venue": "Away", "score": "1-1"}, {"date": "27/05/26", "wdl": "L", "opp": "Mexico", "type": "Friendly", "venue": "Away", "score": "0-2"}, {"date": "30/03/26", "wdl": "L", "opp": "Germany", "type": "Friendly", "venue": "Away", "score": "1-2"}, {"date": "27/03/26", "wdl": "L", "opp": "Austria", "type": "Friendly", "venue": "Away", "score": "1-5"}, {"date": "18/11/25", "wdl": "L", "opp": "South Korea", "type": "Friendly", "venue": "Away", "score": "0-1"}, {"date": "14/11/25", "wdl": "L", "opp": "Japan", "type": "Kirin Challenge Cup", "venue": "Away", "score": "0-2"}, {"date": "12/10/25", "wdl": "W", "opp": "Comoros", "type": "WC qualifier", "venue": "Home", "score": "1-0"}, {"date": "08/10/25", "wdl": "W", "opp": "Central African Republic", "type": "WC qualifier", "venue": "Neutral", "score": "5-0"}, {"date": "08/09/25", "wdl": "W", "opp": "Mali", "type": "WC qualifier", "venue": "Neutral", "score": "1-0"}, {"date": "04/09/25", "wdl": "D", "opp": "Chad", "type": "WC qualifier", "venue": "Away", "score": "1-1"}], "xg_diff_raw": -1.27, "g_diff": -0.3, "dq": 6, "clean_sheet": 0.3, "scoring": 0.7, "ad_ratio": 4.22, "mid_pct": 0.101, "age_flag": "Peak", "total_value": 234.6, "avg_value": 8.69, "avg_age": 26.8}, "Panama": {"pool": "L", "composite": 0.3344, "elo": 0.4198, "form": 0.3818, "xg": 0.2455, "squad": 0.0097, "implied": 0.002, "form_raw": 4.83, "wdl": "5W / 3D / 2L", "history": [{"date": "06/06/26", "wdl": "D", "opp": "Bosnia", "type": "Friendly", "venue": "Neutral", "score": "1-1"}, {"date": "04/06/26", "wdl": "W", "opp": "Dominican Republic", "type": "Friendly", "venue": "Home", "score": "4-2"}, {"date": "31/05/26", "wdl": "L", "opp": "Brazil", "type": "Friendly", "venue": "Away", "score": "2-6"}, {"date": "31/03/26", "wdl": "W", "opp": "South Africa", "type": "Friendly", "venue": "Away", "score": "2-1"}, {"date": "27/03/26", "wdl": "D", "opp": "South Africa", "type": "Friendly", "venue": "Away", "score": "1-1"}, {"date": "22/01/26", "wdl": "L", "opp": "Mexico", "type": "Friendly", "venue": "Home", "score": "0-1"}, {"date": "18/11/25", "wdl": "W", "opp": "El Salvador", "type": "WC qualifier", "venue": "Home", "score": "3-0"}, {"date": "13/11/25", "wdl": "W", "opp": "Guatemala", "type": "WC qualifier", "venue": "Away", "score": "3-2"}, {"date": "14/10/25", "wdl": "D", "opp": "Suriname", "type": "WC qualifier", "venue": "Home", "score": "1-1"}, {"date": "10/10/25", "wdl": "W", "opp": "El Salvador", "type": "WC qualifier", "venue": "Away", "score": "1-0"}], "xg_diff_raw": -0.39, "g_diff": 0.3, "dq": 8, "clean_sheet": 0.2, "scoring": 0.9, "ad_ratio": 0.42, "mid_pct": 0.159, "age_flag": "Too old", "total_value": 34.5, "avg_value": 1.33, "avg_age": 30.4}}, "matches": [{"pool": "A", "date": "11/06", "sortdate": "202606112100", "time": "21:00", "location": "Mexico City", "stadium": "Mexico City Stadium", "team1": "Mexico", "team2": "South Africa", "t1": 0.6891, "t2": 0.2318, "predicted": "Mexico", "confidence": 0.821}, {"pool": "A", "date": "12/06", "sortdate": "202606120400", "time": "04:00", "location": "Guadalajara", "stadium": "Guadalajara Stadium", "team1": "South Korea", "team2": "Czechia", "t1": 0.4277, "t2": 0.4659, "predicted": "Too close to call", "confidence": 0.432}, {"pool": "A", "date": "18/06", "sortdate": "202606181800", "time": "18:00", "location": "Atlanta", "stadium": "Atlanta Stadium", "team1": "Czechia", "team2": "South Africa", "t1": 0.4659, "t2": 0.2318, "predicted": "Czechia", "confidence": 0.685}, {"pool": "A", "date": "19/06", "sortdate": "202606190300", "time": "03:00", "location": "Guadalajara", "stadium": "Guadalajara Stadium", "team1": "Mexico", "team2": "South Korea", "t1": 0.6891, "t2": 0.4277, "predicted": "Mexico", "confidence": 0.779}, {"pool": "A", "date": "25/06", "sortdate": "202606250300", "time": "03:00", "location": "Mexico City", "stadium": "Mexico City Stadium", "team1": "Czechia", "team2": "Mexico", "t1": 0.4659, "t2": 0.6891, "predicted": "Mexico", "confidence": 0.701}, {"pool": "A", "date": "25/06", "sortdate": "202606250300", "time": "03:00", "location": "Monterrey", "stadium": "Monterrey Stadium", "team1": "South Africa", "team2": "South Korea", "t1": 0.2318, "t2": 0.4277, "predicted": "South Korea", "confidence": 0.652}, {"pool": "B", "date": "12/06", "sortdate": "202606122100", "time": "21:00", "location": "Toronto", "stadium": "Toronto Stadium", "team1": "Canada", "team2": "Bosnia", "t1": 0.5389, "t2": 0.3227, "predicted": "Canada", "confidence": 0.68}, {"pool": "B", "date": "13/06", "sortdate": "202606132100", "time": "21:00", "location": "San Francisco Bay Area", "stadium": "San Francisco Bay Area Stadium", "team1": "Qatar", "team2": "Switzerland", "t1": 0.0413, "t2": 0.5991, "predicted": "Switzerland", "confidence": 0.832}, {"pool": "B", "date": "18/06", "sortdate": "202606182100", "time": "21:00", "location": "Los Angeles", "stadium": "Los Angeles Stadium", "team1": "Switzerland", "team2": "Bosnia", "t1": 0.5991, "t2": 0.3227, "predicted": "Switzerland", "confidence": 0.78}, {"pool": "B", "date": "19/06", "sortdate": "202606190000", "time": "00:00", "location": "Vancouver", "stadium": "BC Place Vancouver", "team1": "Canada", "team2": "Qatar", "t1": 0.5389, "t2": 0.0413, "predicted": "Canada", "confidence": 0.811}, {"pool": "B", "date": "24/06", "sortdate": "202606242100", "time": "21:00", "location": "Vancouver", "stadium": "BC Place Vancouver", "team1": "Switzerland", "team2": "Canada", "t1": 0.5991, "t2": 0.5389, "predicted": "Too close to call", "confidence": 0.5}, {"pool": "B", "date": "24/06", "sortdate": "202606242100", "time": "21:00", "location": "Seattle", "stadium": "Seattle Stadium", "team1": "Bosnia", "team2": "Qatar", "t1": 0.3227, "t2": 0.0413, "predicted": "Bosnia", "confidence": 0.75}, {"pool": "C", "date": "14/06", "sortdate": "202606140000", "time": "00:00", "location": "New Jersey", "stadium": "New York/New Jersey Stadium", "team1": "Brazil", "team2": "Morocco", "t1": 0.7183, "t2": 0.6268, "predicted": "Brazil", "confidence": 0.656}, {"pool": "C", "date": "14/06", "sortdate": "202606140300", "time": "03:00", "location": "Boston", "stadium": "Boston Stadium", "team1": "Haiti", "team2": "Scotland", "t1": 0.2368, "t2": 0.4314, "predicted": "Scotland", "confidence": 0.638}, {"pool": "C", "date": "20/06", "sortdate": "202606200000", "time": "00:00", "location": "Boston", "stadium": "Boston Stadium", "team1": "Scotland", "team2": "Morocco", "t1": 0.4314, "t2": 0.6268, "predicted": "Morocco", "confidence": 0.691}, {"pool": "C", "date": "20/06", "sortdate": "202606200230", "time": "02:30", "location": "Philadelphia", "stadium": "Philadelphia Stadium", "team1": "Brazil", "team2": "Haiti", "t1": 0.7183, "t2": 0.2368, "predicted": "Brazil", "confidence": 0.958}, {"pool": "C", "date": "25/06", "sortdate": "202606250000", "time": "00:00", "location": "Maimi", "stadium": "Maimi Stadium", "team1": "Scotland", "team2": "Brazil", "t1": 0.4314, "t2": 0.7183, "predicted": "Brazil", "confidence": 0.947}, {"pool": "C", "date": "25/06", "sortdate": "202606250000", "time": "00:00", "location": "Atlanta", "stadium": "Atlanta Stadium", "team1": "Morocco", "team2": "Haiti", "t1": 0.6268, "t2": 0.2368, "predicted": "Morocco", "confidence": 0.824}, {"pool": "D", "date": "13/06", "sortdate": "202606130300", "time": "03:00", "location": "Los Angeles", "stadium": "Los Angeles Stadium", "team1": "U.S.A.", "team2": "Paraguay", "t1": 0.4304, "t2": 0.4102, "predicted": "Too close to call", "confidence": 0.45}, {"pool": "D", "date": "14/06", "sortdate": "202606140600", "time": "06:00", "location": "Vancouver", "stadium": "BC Place Vancouver", "team1": "Australia", "team2": "Turkey", "t1": 0.3657, "t2": 0.6788, "predicted": "Turkey", "confidence": 0.834}, {"pool": "D", "date": "19/06", "sortdate": "202606192100", "time": "21:00", "location": "Seattle", "stadium": "Seattle Stadium", "team1": "U.S.A.", "team2": "Australia", "t1": 0.4304, "t2": 0.3657, "predicted": "Too close to call", "confidence": 0.528}, {"pool": "D", "date": "20/06", "sortdate": "202606200500", "time": "05:00", "location": "San Francisco Bay Area", "stadium": "San Francisco Bay Area Stadium", "team1": "Turkey", "team2": "Paraguay", "t1": 0.6788, "t2": 0.4102, "predicted": "Turkey", "confidence": 0.773}, {"pool": "D", "date": "26/06", "sortdate": "202606260400", "time": "04:00", "location": "Los Angeles", "stadium": "Los Angeles Stadium", "team1": "Turkey", "team2": "U.S.A.", "t1": 0.6788, "t2": 0.4304, "predicted": "Turkey", "confidence": 0.734}, {"pool": "D", "date": "26/06", "sortdate": "202606260400", "time": "04:00", "location": "San Francisco Bay Area", "stadium": "San Francisco Bay Area Stadium", "team1": "Paraguay", "team2": "Australia", "t1": 0.4102, "t2": 0.3657, "predicted": "Too close to call", "confidence": 0.448}, {"pool": "E", "date": "14/06", "sortdate": "202606141900", "time": "19:00", "location": "Houston", "stadium": "Houston Stadium", "team1": "Germany", "team2": "Cura\u00e7ao", "t1": 0.7428, "t2": 0.117, "predicted": "Germany", "confidence": 0.925}, {"pool": "E", "date": "15/06", "sortdate": "202606150100", "time": "01:00", "location": "Philladelphia", "stadium": "Philladelphia Stadium", "team1": "Ivory Coast", "team2": "Ecuador", "t1": 0.5176, "t2": 0.5848, "predicted": "Too close to call", "confidence": 0.481}, {"pool": "E", "date": "20/06", "sortdate": "202606202200", "time": "22:00", "location": "Toronto", "stadium": "Toronto Stadium", "team1": "Germany", "team2": "Ivory Coast", "t1": 0.7428, "t2": 0.5176, "predicted": "Germany", "confidence": 0.805}, {"pool": "E", "date": "21/06", "sortdate": "202606210200", "time": "02:00", "location": "Kansas City", "stadium": "Kansas City Stadium", "team1": "Ecuador", "team2": "Cura\u00e7ao", "t1": 0.5848, "t2": 0.117, "predicted": "Ecuador", "confidence": 0.811}, {"pool": "E", "date": "25/06", "sortdate": "202606252200", "time": "22:00", "location": "Philadelphia", "stadium": "Philadelphia Stadium", "team1": "Cura\u00e7ao", "team2": "Ivory Coast", "t1": 0.117, "t2": 0.5176, "predicted": "Ivory Coast", "confidence": 0.791}, {"pool": "E", "date": "25/06", "sortdate": "202606252200", "time": "22:00", "location": "New Jersey", "stadium": "New York/New Jersey Stadium", "team1": "Ecuador", "team2": "Germany", "t1": 0.5848, "t2": 0.7428, "predicted": "Germany", "confidence": 0.725}, {"pool": "F", "date": "14/06", "sortdate": "202606142200", "time": "22:00", "location": "Dallas", "stadium": "Dallas Stadium", "team1": "Netherlands", "team2": "Japan", "t1": 0.6741, "t2": 0.6271, "predicted": "Too close to call", "confidence": 0.511}, {"pool": "F", "date": "15/06", "sortdate": "202606150400", "time": "04:00", "location": "Monterrey", "stadium": "Monterrey Stadium", "team1": "Sweden", "team2": "Tunisia", "t1": 0.3173, "t2": 0.27, "predicted": "Too close to call", "confidence": 0.459}, {"pool": "F", "date": "20/06", "sortdate": "202606201900", "time": "19:00", "location": "Houston", "stadium": "Houston Stadium", "team1": "Netherlands", "team2": "Sweden", "t1": 0.6741, "t2": 0.3173, "predicted": "Netherlands", "confidence": 0.886}, {"pool": "F", "date": "21/06", "sortdate": "202606210600", "time": "06:00", "location": "Monterrey", "stadium": "Monterrey Stadium", "team1": "Tunisia", "team2": "Japan", "t1": 0.27, "t2": 0.6271, "predicted": "Japan", "confidence": 0.835}, {"pool": "F", "date": "26/06", "sortdate": "202606260100", "time": "01:00", "location": "Dallas", "stadium": "Dallas Stadium", "team1": "Japan", "team2": "Sweden", "t1": 0.6271, "t2": 0.3173, "predicted": "Japan", "confidence": 0.838}, {"pool": "F", "date": "26/06", "sortdate": "202606260100", "time": "01:00", "location": "Kansas City", "stadium": "Kansas City Stadium", "team1": "Tunisia", "team2": "Netherlands", "t1": 0.27, "t2": 0.6741, "predicted": "Netherlands", "confidence": 0.882}, {"pool": "G", "date": "15/06", "sortdate": "202606152100", "time": "21:00", "location": "Seattle", "stadium": "Seattle Stadium", "team1": "Belgium", "team2": "Egypt", "t1": 0.7238, "t2": 0.3873, "predicted": "Belgium", "confidence": 0.838}, {"pool": "G", "date": "16/06", "sortdate": "202606160300", "time": "03:00", "location": "Los Angeles", "stadium": "Los Angeles Stadium", "team1": "Iran", "team2": "New Zealand", "t1": 0.4104, "t2": 0.1219, "predicted": "Iran", "confidence": 0.563}, {"pool": "G", "date": "21/06", "sortdate": "202606212100", "time": "21:00", "location": "Los Angeles", "stadium": "Los Angeles Stadium", "team1": "Belgium", "team2": "Iran", "t1": 0.7238, "t2": 0.4104, "predicted": "Belgium", "confidence": 0.646}, {"pool": "G", "date": "22/06", "sortdate": "202606220300", "time": "03:00", "location": "Vancouver", "stadium": "BC Place Vancouver", "team1": "New Zealand", "team2": "Egypt", "t1": 0.1219, "t2": 0.3873, "predicted": "Egypt", "confidence": 0.724}, {"pool": "G", "date": "27/06", "sortdate": "202606270500", "time": "05:00", "location": "Seattle", "stadium": "Seattle Stadium", "team1": "Egypt", "team2": "Iran", "t1": 0.3873, "t2": 0.4104, "predicted": "Too close to call", "confidence": 0.238}, {"pool": "G", "date": "27/06", "sortdate": "202606270500", "time": "05:00", "location": "Vancouver", "stadium": "BC Place Vancouver", "team1": "New Zealand", "team2": "Belgium", "t1": 0.1219, "t2": 0.7238, "predicted": "Belgium", "confidence": 0.808}, {"pool": "H", "date": "15/06", "sortdate": "202606151800", "time": "18:00", "location": "Atlanta", "stadium": "Atlanta Stadium", "team1": "Spain", "team2": "Cape Verde", "t1": 0.969, "t2": 0.2716, "predicted": "Spain", "confidence": 0.815}, {"pool": "H", "date": "16/06", "sortdate": "202606160000", "time": "00:00", "location": "Maimi", "stadium": "Maimi Stadium", "team1": "Saudi Arabia", "team2": "Uruguay", "t1": 0.2275, "t2": 0.4629, "predicted": "Uruguay", "confidence": 0.74}, {"pool": "H", "date": "21/06", "sortdate": "202606211800", "time": "18:00", "location": "Atlanta", "stadium": "Atlanta Stadium", "team1": "Spain", "team2": "Saudi Arabia", "t1": 0.969, "t2": 0.2275, "predicted": "Spain", "confidence": 1}, {"pool": "H", "date": "22/06", "sortdate": "202606220000", "time": "00:00", "location": "Maimi", "stadium": "Maimi Stadium", "team1": "Uruguay", "team2": "Cape Verde", "t1": 0.4629, "t2": 0.2716, "predicted": "Uruguay", "confidence": 0.498}, {"pool": "H", "date": "27/06", "sortdate": "202606270200", "time": "02:00", "location": "Houston", "stadium": "Houston Stadium", "team1": "Cape Verde", "team2": "Saudi Arabia", "t1": 0.2716, "t2": 0.2275, "predicted": "Too close to call", "confidence": 0.274}, {"pool": "H", "date": "27/06", "sortdate": "202606270200", "time": "02:00", "location": "Guadalajara", "stadium": "Guadalajara Stadium", "team1": "Uruguay", "team2": "Spain", "t1": 0.4629, "t2": 0.969, "predicted": "Spain", "confidence": 1}, {"pool": "I", "date": "16/06", "sortdate": "202606162100", "time": "21:00", "location": "New Jersey", "stadium": "New York/New Jersey Stadium", "team1": "France", "team2": "Senegal", "t1": 0.8505, "t2": 0.6259, "predicted": "France", "confidence": 0.892}, {"pool": "I", "date": "17/06", "sortdate": "202606170000", "time": "00:00", "location": "Boston", "stadium": "Boston Stadium", "team1": "Iraq", "team2": "Norway", "t1": 0.2635, "t2": 0.6701, "predicted": "Norway", "confidence": 0.837}, {"pool": "I", "date": "22/06", "sortdate": "202606222300", "time": "23:00", "location": "Philadelphia", "stadium": "Philadelphia Stadium", "team1": "France", "team2": "Iraq", "t1": 0.8505, "t2": 0.2635, "predicted": "France", "confidence": 0.985}, {"pool": "I", "date": "23/06", "sortdate": "202606230200", "time": "02:00", "location": "New Jersey", "stadium": "New York/New Jersey Stadium", "team1": "Norway", "team2": "Senegal", "t1": 0.6701, "t2": 0.6259, "predicted": "Too close to call", "confidence": 0.477}, {"pool": "I", "date": "26/06", "sortdate": "202606262100", "time": "21:00", "location": "Boston", "stadium": "Boston Stadium", "team1": "Norway", "team2": "France", "t1": 0.6701, "t2": 0.8505, "predicted": "France", "confidence": 0.841}, {"pool": "I", "date": "26/06", "sortdate": "202606262100", "time": "21:00", "location": "Toronto", "stadium": "Toronto Stadium", "team1": "Senegal", "team2": "Iraq", "t1": 0.6259, "t2": 0.2635, "predicted": "Senegal", "confidence": 0.804}, {"pool": "J", "date": "17/06", "sortdate": "202606170300", "time": "03:00", "location": "Kansas City", "stadium": "Kansas City Stadium", "team1": "Argentina", "team2": "Algeria", "t1": 0.8016, "t2": 0.5265, "predicted": "Argentina", "confidence": 0.912}, {"pool": "J", "date": "17/06", "sortdate": "202606170600", "time": "06:00", "location": "San Francisco Bay Area", "stadium": "San Francisco Bay Area Stadium", "team1": "Austria", "team2": "Jordan", "t1": 0.5518, "t2": 0.3271, "predicted": "Austria", "confidence": 0.705}, {"pool": "J", "date": "22/06", "sortdate": "202606221900", "time": "19:00", "location": "Dallas", "stadium": "Dallas Stadium", "team1": "Argentina", "team2": "Austria", "t1": 0.8016, "t2": 0.5518, "predicted": "Argentina", "confidence": 0.883}, {"pool": "J", "date": "23/06", "sortdate": "202606230500", "time": "05:00", "location": "San Francisco Bay Area", "stadium": "San Francisco Bay Area Stadium", "team1": "Jordan", "team2": "Algeria", "t1": 0.3271, "t2": 0.5265, "predicted": "Algeria", "confidence": 0.646}, {"pool": "J", "date": "28/06", "sortdate": "202606280400", "time": "04:00", "location": "Kansas City", "stadium": "Kansas City Stadium", "team1": "Algeria", "team2": "Austria", "t1": 0.5265, "t2": 0.5518, "predicted": "Too close to call", "confidence": 0.429}, {"pool": "J", "date": "28/06", "sortdate": "202606280400", "time": "04:00", "location": "Dallas", "stadium": "Dallas Stadium", "team1": "Jordan", "team2": "Argentina", "t1": 0.3271, "t2": 0.8016, "predicted": "Argentina", "confidence": 0.956}, {"pool": "K", "date": "17/06", "sortdate": "202606171900", "time": "19:00", "location": "Houston", "stadium": "Houston Stadium", "team1": "Portugal", "team2": "DR Congo", "t1": 0.7653, "t2": 0.4061, "predicted": "Portugal", "confidence": 0.954}, {"pool": "K", "date": "18/06", "sortdate": "202606180400", "time": "04:00", "location": "Mexico City", "stadium": "Mexico City Stadium", "team1": "Uzbekistan", "team2": "Colombia", "t1": 0.3283, "t2": 0.6304, "predicted": "Colombia", "confidence": 0.665}, {"pool": "K", "date": "23/06", "sortdate": "202606231900", "time": "19:00", "location": "Houston", "stadium": "Houston Stadium", "team1": "Portugal", "team2": "Uzbekistan", "t1": 0.7653, "t2": 0.3283, "predicted": "Portugal", "confidence": 0.798}, {"pool": "K", "date": "24/06", "sortdate": "202606240400", "time": "04:00", "location": "Guadalajara", "stadium": "Guadalajara Stadium", "team1": "Colombia", "team2": "DR Congo", "t1": 0.6304, "t2": 0.4061, "predicted": "Colombia", "confidence": 0.719}, {"pool": "K", "date": "28/06", "sortdate": "202606280130", "time": "01:30", "location": "Maimi", "stadium": "Maimi Stadium", "team1": "Colombia", "team2": "Portugal", "t1": 0.6304, "t2": 0.7653, "predicted": "Portugal", "confidence": 0.714}, {"pool": "K", "date": "28/06", "sortdate": "202606280130", "time": "01:30", "location": "Atlanta", "stadium": "Atlanta Stadium", "team1": "DR Congo", "team2": "Uzbekistan", "t1": 0.4061, "t2": 0.3283, "predicted": "Too close to call", "confidence": 0.304}, {"pool": "L", "date": "17/06", "sortdate": "202606172200", "time": "22:00", "location": "Dallas", "stadium": "Dallas Stadium", "team1": "England", "team2": "Croatia", "t1": 0.8447, "t2": 0.5845, "predicted": "England", "confidence": 0.929}, {"pool": "L", "date": "18/06", "sortdate": "202606180100", "time": "01:00", "location": "Toronto", "stadium": "Toronto Stadium", "team1": "Ghana", "team2": "Panama", "t1": 0.0854, "t2": 0.3344, "predicted": "Panama", "confidence": 0.689}, {"pool": "L", "date": "23/06", "sortdate": "202606232200", "time": "22:00", "location": "Boston", "stadium": "Boston Stadium", "team1": "England", "team2": "Ghana", "t1": 0.8447, "t2": 0.0854, "predicted": "England", "confidence": 0.97}, {"pool": "L", "date": "24/06", "sortdate": "202606240100", "time": "01:00", "location": "Toronto", "stadium": "Toronto Stadium", "team1": "Panama", "team2": "Croatia", "t1": 0.3344, "t2": 0.5845, "predicted": "Croatia", "confidence": 0.754}, {"pool": "L", "date": "27/06", "sortdate": "202606272300", "time": "23:00", "location": "New Jersey", "stadium": "New York/New Jersey Stadium", "team1": "Panama", "team2": "England", "t1": 0.3344, "t2": 0.8447, "predicted": "England", "confidence": 0.985}, {"pool": "L", "date": "27/06", "sortdate": "202606272300", "time": "23:00", "location": "Philadelphia", "stadium": "Philadelphia Stadium", "team1": "Croatia", "team2": "Ghana", "t1": 0.5845, "t2": 0.0854, "predicted": "Croatia", "confidence": 0.808}]};
+const FLAGS = {"Mexico": "🇲🇽", "South Africa": "🇿🇦", "South Korea": "🇰🇷", "Czechia": "🇨🇿", "Canada": "🇨🇦", "Bosnia": "🇧🇦", "Qatar": "🇶🇦", "Switzerland": "🇨🇭", "Brazil": "🇧🇷", "Morocco": "🇲🇦", "Haiti": "🇭🇹", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "U.S.A.": "🇺🇸", "Paraguay": "🇵🇾", "Australia": "🇦🇺", "Turkey": "🇹🇷", "Germany": "🇩🇪", "Curaçao": "🇨🇼", "Ivory Coast": "🇨🇮", "Ecuador": "🇪🇨", "Netherlands": "🇳🇱", "Japan": "🇯🇵", "Sweden": "🇸🇪", "Tunisia": "🇹🇳", "Belgium": "🇧🇪", "Egypt": "🇪🇬", "Iran": "🇮🇷", "New Zealand": "🇳🇿", "Spain": "🇪🇸", "Cape Verde": "🇨🇻", "Saudi Arabia": "🇸🇦", "Uruguay": "🇺🇾", "France": "🇫🇷", "Senegal": "🇸🇳", "Iraq": "🇮🇶", "Norway": "🇳🇴", "Argentina": "🇦🇷", "Algeria": "🇩🇿", "Austria": "🇦🇹", "Jordan": "🇯🇴", "Portugal": "🇵🇹", "DR Congo": "🇨🇩", "Uzbekistan": "🇺🇿", "Colombia": "🇨🇴", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Croatia": "🇭🇷", "Ghana": "🇬🇭", "Panama": "🇵🇦", "Albania": "🇦🇱", "Andorra": "🇦🇩", "Angola": "🇦🇴", "Armenia": "🇦🇲", "Aruba": "🇦🇼", "Azerbaijan": "🇦🇿", "Bahrain": "🇧🇭", "Belarus": "🇧🇾", "Benin": "🇧🇯", "Bermuda": "🇧🇲", "Bolivia": "🇧🇴", "Botswana": "🇧🇼", "Bulgaria": "🇧🇬", "Burkina Faso": "🇧🇫", "Cameroon": "🇨🇲", "Central African Republic": "🇨🇫", "Chad": "🇹🇩", "Chile": "🇨🇱", "China": "🇨🇳", "Comoros": "🇰🇲", "Costa Rica": "🇨🇷", "Curacao": "🇨🇼", "Cyprus": "🇨🇾", "Denmark": "🇩🇰", "Dominican Republic": "🇩🇴", "EL Salvador": "🇸🇻", "El Salvador": "🇸🇻", "El Savador": "🇸🇻", "Equatorial Guinea": "🇬🇶", "Estonia": "🇪🇪", "Eswatini": "🇸🇿", "Faroe Islands": "🇫🇴", "Fiji": "🇫🇯", "Finland": "🇫🇮", "Gabon": "🇬🇦", "Gambia": "🇬🇲", "Georgia": "🇬🇪", "Gibraltar": "🇬🇮", "Greece": "🇬🇷", "Guatemala": "🇬🇹", "Honduras": "🇭🇳", "Hong Kong": "🇭🇰", "Hungary": "🇭🇺", "Iceland": "🇮🇸", "Indonesia": "🇮🇩", "Ireland": "🇮🇪", "Israel": "🇮🇱", "Italy": "🇮🇹", "Jamaica": "🇯🇲", "Kazakhstan": "🇰🇿", "Kosovo": "🇽🇰", "Kuwait": "🇰🇼", "Kyrgyzstan": "🇰🇬", "Lebanon": "🇱🇧", "Libya": "🇱🇾", "Liechtenstein": "🇱🇮", "Lithuania": "🇱🇹", "Luxembourg": "🇱🇺", "Madagascar": "🇲🇬", "Mali": "🇲🇱", "Malta": "🇲🇹", "Mauritania": "🇲🇷", "Mauritius": "🇲🇺", "Moldova": "🇲🇩", "Montenegro": "🇲🇪", "Mozambique": "🇲🇿", "New Caldedonia": "🇳🇨", "Nicaragua": "🇳🇮", "Nigeria": "🇳🇬", "North Macedonia": "🇲🇰", "North Marcedonia": "🇲🇰", "Northern Ireland": "🇬🇧", "Oman": "🇴🇲", "Palestine": "🇵🇸", "Peru": "🇵🇪", "Poland": "🇵🇱", "Puerto Rico": "🇵🇷", "Romania": "🇷🇴", "Russia": "🇷🇺", "Rwanda": "🇷🇼", "San Marino": "🇸🇲", "Serbia": "🇷🇸", "Slovakia": "🇸🇰", "Slovenia": "🇸🇮", "Sudan": "🇸🇩", "Suriname": "🇸🇷", "Switserland": "🇨🇭", "Syria": "🇸🇾", "Tanzania": "🇹🇿", "Trinidad and Tobago": "🇹🇹", "Turkmenistan": "🇹🇲", "U.A.E": "🇦🇪", "U.A.E.": "🇦🇪", "Uganda": "🇺🇬", "Ukraine": "🇺🇦", "Venezuela": "🇻🇪", "Venuzuela": "🇻🇪", "Wales": "🏴󠁧󠁢󠁷󠁬󠁳󠁿", "Zambia": "🇿🇲", "Zimbabwe": "🇿🇼"};
+const VENUES = {"Atlanta": {"lat": 33.7554, "lon": -84.401}, "Boston": {"lat": 42.0909, "lon": -71.2643}, "Dallas": {"lat": 32.7473, "lon": -97.0945}, "Guadalajara": {"lat": 20.6817, "lon": -103.4625}, "Houston": {"lat": 29.6847, "lon": -95.4107}, "Kansas City": {"lat": 39.0489, "lon": -94.4839}, "Los Angeles": {"lat": 33.9535, "lon": -118.3392}, "Maimi": {"lat": 25.958, "lon": -80.2389}, "Miami": {"lat": 25.958, "lon": -80.2389}, "Mexico City": {"lat": 19.3029, "lon": -99.1505}, "Monterrey": {"lat": 25.6693, "lon": -100.2442}, "New Jersey": {"lat": 40.8135, "lon": -74.0745}, "Philadelphia": {"lat": 39.9008, "lon": -75.1675}, "Philladelphia": {"lat": 39.9008, "lon": -75.1675}, "San Francisco Bay Area": {"lat": 37.4033, "lon": -121.9694}, "Seattle": {"lat": 47.5952, "lon": -122.3316}, "Toronto": {"lat": 43.6332, "lon": -79.4186}, "Vancouver": {"lat": 49.2768, "lon": -123.112}};
+const W4={elo:.45,form:.25,xg:.20,squad:.10};
+const W3={elo:.5625,form:.3125,squad:.125};
+const HOSTS=["U.S.A.","Canada","Mexico"];
+const COLORS={elo:'#4c9af5',form:'#f5774c',xg:'#4cf5a8',squad:'#b54cf5'};
+const fl=n=>FLAGS[n]?`<span class="flag">${FLAGS[n]}</span>`:'';
+
+const teams=Object.entries(DATA.teams).map(([name,t])=>({name,...t,excluded:t.dq<5}));
+teams.sort((a,b)=>b.composite-a.composite);
+const rankOf={}; teams.forEach((t,i)=>rankOf[t.name]=i+1);
+DATA.matches.forEach((m,i)=>{m.mi=i;m.gap=(m.t1!=null&&m.t2!=null)?Math.abs(m.t1-m.t2):0;});
+
+/* ---------- RANKINGS ---------- */
+const maxComp=teams[0].composite;
+const rankList=document.getElementById('rank-list');
+teams.forEach((t,i)=>{
+  const row=document.createElement('div');row.className='rank-row';row.dataset.team=t.name;
+  let segs='';
+  const homeBoost=HOSTS.includes(t.name)?0.073:0;
+  if(!t.excluded){
+    segs+=seg(t.elo*W4.elo,COLORS.elo)+seg(t.form*W4.form,COLORS.form)+seg(t.xg*W4.xg,COLORS.xg)+seg(t.squad*W4.squad,COLORS.squad);
+  }else{
+    segs+=seg(t.elo*W3.elo,COLORS.elo)+seg(t.form*W3.form,COLORS.form)+seg(t.squad*W3.squad,COLORS.squad);
+  }
+  if(homeBoost) segs+=seg(homeBoost,'#f5c84c');
+  row.innerHTML=`<div class="rank-num">${i+1}</div>
+    <div class="rank-team">${fl(t.name)}${t.name}<span class="pool-tag">${t.pool}</span>${t.excluded?'<span class="excl">×G</span>':''}</div>
+    <div class="bar-track">${segs}</div>
+    <div class="rank-val">${t.composite.toFixed(3)}</div>`;
+  rankList.appendChild(row);
+});
+function seg(v,c){return `<div class="bar-seg" style="width:${(v/maxComp*100).toFixed(2)}%;background:${c}"></div>`}
+rankList.addEventListener('click',e=>{const r=e.target.closest('.rank-row');if(r)openDetail(r.dataset.team);});
+
+/* ---------- TEAM DETAIL ---------- */
+function openDetail(name){
+  const t=DATA.teams[name];if(!t)return;
+  document.getElementById('d-name').innerHTML=`${fl(name)}${name}`;
+  document.getElementById('d-meta').textContent=`Pool ${t.pool} · Rank #${rankOf[name]} of 48${HOSTS.includes(name)?' · Host nation (+0.073)':''}${t.dq<5?' · xG excluded from composite':''}`;
+  const items=[
+    ['Composite score',t.composite.toFixed(3)],
+    ['Market implied prob',t.implied!=null?(t.implied*100).toFixed(1)+'%':'—'],
+    ['Form (raw)',t.form_raw!=null?t.form_raw.toFixed(2):'—'],
+    ['Last 10 (W/D/L)',t.wdl||'—'],
+    ['AVG xG diff',t.xg_diff_raw!=null?t.xg_diff_raw.toFixed(2):'no data'],
+    ['AVG goal diff',t.g_diff!=null?t.g_diff.toFixed(2):'—'],
+    ['xG data quality',t.dq+'/10'],
+    ['Clean sheets',t.clean_sheet!=null?Math.round(t.clean_sheet*100)+'%':'—'],
+    ['Scoring consistency',t.scoring!=null?Math.round(t.scoring*100)+'%':'—'],
+    ['Total squad value',t.total_value!=null?'€'+t.total_value+'m':'—'],
+    ['Avg player value',t.avg_value!=null?'€'+t.avg_value+'m':'—'],
+    ['Avg squad age',t.avg_age!=null?t.avg_age+' ('+(t.age_flag||'')+')':'—'],
+    ['Attack/Defense ratio',t.ad_ratio!=null?t.ad_ratio.toFixed(2):'—'],
+    ['Midfield % of value',t.mid_pct!=null?Math.round(t.mid_pct*100)+'%':'—'],
+  ];
+  document.getElementById('d-stats').innerHTML=items.map(([l,v])=>`<div class="stat"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
+  document.getElementById('d-history').innerHTML=(t.history||[]).map(h=>`
+    <tr><td class="mono">${h.date}</td><td class="wdl-${h.wdl}">${h.wdl}</td><td>${fl(h.opp)}${h.opp}</td><td class="mono">${h.score}</td><td style="color:var(--muted)">${h.type}</td><td style="color:var(--muted)">${h.venue}</td></tr>`).join('');
+  document.getElementById('detail').classList.add('open');
+}
+document.querySelectorAll('.detail').forEach(d=>{
+  d.addEventListener('click',e=>{if(e.target===d||e.target.dataset.close)d.classList.remove('open');});
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.detail').forEach(d=>d.classList.remove('open'));});
+
+/* ---------- PREDICTED STANDINGS + BEST THIRDS ---------- */
+function poolStandings(p){
+  const pt=teams.filter(t=>t.pool===p);
+  const pts={},w={},d={},l={};
+  pt.forEach(t=>{pts[t.name]=0;w[t.name]=0;d[t.name]=0;l[t.name]=0});
+  DATA.matches.filter(m=>m.pool===p).forEach(m=>{
+    if(m.predicted==='Too close to call'){pts[m.team1]+=1;pts[m.team2]+=1;d[m.team1]++;d[m.team2]++;}
+    else{const loser=m.predicted===m.team1?m.team2:m.team1;pts[m.predicted]+=3;w[m.predicted]++;l[loser]++;}
+  });
+  return pt.map(t=>({name:t.name,pts:pts[t.name],w:w[t.name],d:d[t.name],l:l[t.name],comp:t.composite}))
+    .sort((a,b)=>b.pts-a.pts||b.comp-a.comp);
+}
+const allPools=[...new Set(teams.map(t=>t.pool))].sort();
+const thirds=allPools.map(p=>({pool:p,...poolStandings(p)[2]}));
+thirds.sort((a,b)=>b.pts-a.pts||b.comp-a.comp);
+const BEST_THIRDS=new Set(thirds.slice(0,8).map(t=>t.name));
+
+/* ---------- POOLS ---------- */
+let currentPool=allPools[0];
+const poolSelect=document.getElementById('pool-select');
+allPools.forEach((p,i)=>{
+  const b=document.createElement('button');b.textContent=p;
+  b.onclick=()=>{poolSelect.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active');currentPool=p;renderPool(p)};
+  if(i===0)b.classList.add('active');
+  poolSelect.appendChild(b);
+});
+document.querySelectorAll('.subtabs button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.subtabs button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('sub-teams').style.display=b.dataset.sub==='teams'?'block':'none';
+    document.getElementById('sub-standings').style.display=b.dataset.sub==='standings'?'block':'none';
+  };
+});
+function miniRow(label,val,color){
+  const pct=Math.max(0,Math.min(1,val??0))*100;
+  return `<div class="mini-row"><div class="l">${label}</div><div class="mini-track"><div class="mini-fill" style="width:${pct}%;background:${color}"></div></div><div class="v">${val!=null?val.toFixed(2):'—'}</div></div>`;
+}
+function renderPool(p){
+  const pt=teams.filter(t=>t.pool===p);
+  const ptHtml=pt.map(t=>`
+    <div class="team-card" data-team="${t.name}">
+      <h4><span>${fl(t.name)}${t.name}</span><span class="cs">${t.composite.toFixed(3)}</span></h4>
+      <div class="meta">Rank #${rankOf[t.name]} · ${t.wdl||''} ${t.excluded?'· <span style="color:var(--warn)">xG excluded</span>':''}</div>
+      <div class="mini-rows">
+        ${miniRow('ELO',t.elo,COLORS.elo)}${miniRow('Form',t.form,COLORS.form)}${miniRow('xG',t.excluded?null:t.xg,COLORS.xg)}${miniRow('Squad',t.squad,COLORS.squad)}
+      </div>
+    </div>`).join('');
+  document.getElementById('pool-teams').innerHTML=ptHtml;
+  document.getElementById('pool-match-list').innerHTML=DATA.matches.filter(m=>m.pool===p).map(m=>matchHTML(m,false)).join('');
+  const st=poolStandings(p);
+  document.getElementById('standings-body').innerHTML=st.map((s,i)=>{
+    let cls='';
+    if(i<2)cls='qual';else if(i===2&&BEST_THIRDS.has(s.name))cls='third';
+    return `<tr class="${cls}">
+      <td class="mono">${i+1}</td><td>${fl(s.name)}${s.name}</td>
+      <td class="mono" style="color:var(--gold);font-weight:600">${s.pts}</td>
+      <td class="mono">${s.w}</td><td class="mono">${s.d}</td><td class="mono">${s.l}</td>
+      <td class="mono" style="color:var(--muted)">${s.comp.toFixed(3)}</td></tr>`;
+  }).join('');
+}
+document.getElementById('pool-teams').addEventListener('click',e=>{const c=e.target.closest('.team-card');if(c)openDetail(c.dataset.team);});
+document.getElementById('pool-match-list').addEventListener('click',e=>{const r=e.target.closest('.match');if(r)openMatch(+r.dataset.mi);});
+
+function matchHTML(m,showPool){
+  const tctc=m.predicted==='Too close to call';
+  return `<div class="match clickable" data-mi="${m.mi}">
+    <div class="when">${m.date}<br>${m.time}</div>
+    <div class="teams">${fl(m.team1)}${m.team1}<span class="vs">vs</span>${fl(m.team2)}${m.team2}${showPool?`<span class="pool-badge">${m.pool}</span>`:''}<br><span style="font-size:11px;color:var(--muted);font-weight:400">${m.location}</span></div>
+    <div class="pred ${tctc?'tctc':''}">Prediction<br><span class="who">${m.predicted}</span></div>
+    <div class="conf-wrap"><div class="conf-track"><div class="conf-fill" style="width:${(m.confidence??0)*100}%"></div></div><div class="conf-val">${m.confidence!=null?Math.round(m.confidence*100)+'%':'—'}</div></div>
+  </div>`;
+}
+renderPool(allPools[0]);
+
+/* ---------- MATCH DETAIL MODAL + MAP ---------- */
+function openMatch(mi){
+  const m=DATA.matches[mi];if(!m)return;
+  const t1=DATA.teams[m.team1],t2=DATA.teams[m.team2];
+  document.getElementById('md-title').innerHTML=`${fl(m.team1)}${m.team1}<span style="color:var(--muted);font-weight:400;font-size:14px"> vs </span>${fl(m.team2)}${m.team2}`;
+  document.getElementById('md-meta').textContent=`Pool ${m.pool} · ${m.date} ${m.time} CET · ${m.stadium}, ${m.location}`;
+  const tctc=m.predicted==='Too close to call';
+  document.getElementById('md-pred').innerHTML=`
+    <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase">Model prediction</div>
+    <div style="font-family:'Archivo';font-weight:800;font-size:18px;color:${tctc?'var(--muted)':'var(--gold)'}">${m.predicted}</div></div>
+    <div style="text-align:right"><div style="font-size:11px;color:var(--muted);text-transform:uppercase">Confidence · Score gap</div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:16px">${m.confidence!=null?Math.round(m.confidence*100)+'%':'—'} · ${m.gap.toFixed(3)}</div></div>`;
+  const rowFor=(name,t)=>t?`<tr><td>${fl(name)}<b>${name}</b></td><td class="mono">#${rankOf[name]}</td><td class="mono" style="color:var(--gold)">${t.composite.toFixed(3)}</td><td class="mono">${t.wdl||'—'}</td><td class="mono">${t.xg_diff_raw!=null?t.xg_diff_raw.toFixed(2):'—'}</td><td class="mono">${t.clean_sheet!=null?Math.round(t.clean_sheet*100)+'%':'—'}</td></tr>`:'';
+  document.getElementById('md-compare').innerHTML=rowFor(m.team1,t1)+rowFor(m.team2,t2);
+  const v=VENUES[m.location];
+  const frame=document.getElementById('md-map'),note=document.getElementById('md-mapnote');
+  document.getElementById('match-detail').classList.add('open');
+  if(v){
+    frame.style.display='block';
+    note.innerHTML=`${m.location} — ${m.stadium} (© OpenStreetMap contributors) · <a href="https://www.openstreetmap.org/?mlat=${v.lat}&mlon=${v.lon}#map=14/${v.lat}/${v.lon}" target="_blank" rel="noopener">zoom to stadium ↗</a>`;
+    requestAnimationFrame(()=>renderTileMap(frame,v.lat,v.lon,5));
+  }else{frame.style.display='none';note.textContent='No coordinates available for this venue.';}
+}
+function renderTileMap(el,lat,lon,z){
+  el.innerHTML='';
+  const w=el.clientWidth||560,h=el.clientHeight||280,n=Math.pow(2,z);
+  const rad=lat*Math.PI/180;
+  const cx=((lon+180)/360)*n*256;
+  const cy=((1-Math.log(Math.tan(rad)+1/Math.cos(rad))/Math.PI)/2)*n*256;
+  const x0=cx-w/2,y0=cy-h/2;
+  const tx0=Math.floor(x0/256),ty0=Math.floor(y0/256);
+  const tx1=Math.floor((x0+w)/256),ty1=Math.floor((y0+h)/256);
+  for(let tx=tx0;tx<=tx1;tx++)for(let ty=ty0;ty<=ty1;ty++){
+    if(ty<0||ty>=n)continue;
+    const img=document.createElement('img');
+    img.className='map-tile';img.alt='';
+    img.referrerPolicy='no-referrer-when-downgrade';
+    img.src=`https://tile.openstreetmap.org/${z}/${((tx%n)+n)%n}/${ty}.png`;
+    img.onerror=function(){this.style.display='none';};
+    img.style.left=(tx*256-x0)+'px';img.style.top=(ty*256-y0)+'px';
+    el.appendChild(img);
+  }
+  const pin=document.createElement('div');pin.className='map-pin';el.appendChild(pin);
+}
+
+/* ---------- MARKET SCATTER + TRENDLINE ---------- */
+(function(){
+  const svg=document.getElementById('scatter');
+  const tip=document.getElementById('tooltip');
+  const box=svg.parentElement;
+  const W=900,H=520,P={t:24,r:28,b:52,l:64};
+  const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const maxI=Math.max(...teams.map(t=>t.implied||0));
+  const x=v=>P.l+Math.sqrt((v||0)/maxI)*iw;
+  const y=v=>P.t+ih-v*ih;
+  let g='';
+  g+=`<line x1="${P.l}" y1="${P.t+ih}" x2="${P.l+iw}" y2="${P.t+ih}" stroke="#2a3162"/>`;
+  g+=`<line x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${P.t+ih}" stroke="#2a3162"/>`;
+  [0,.005,.02,.05,.10,.167].forEach(v=>{
+    g+=`<text x="${x(v)}" y="${P.t+ih+20}" fill="#8b93c4" font-size="11" text-anchor="middle">${(v*100).toFixed(1)}%</text>`;
+    g+=`<line x1="${x(v)}" y1="${P.t}" x2="${x(v)}" y2="${P.t+ih}" stroke="#1d2450" stroke-dasharray="3 4"/>`;
+  });
+  [0,.25,.5,.75,1].forEach(v=>{
+    g+=`<text x="${P.l-10}" y="${y(v)+4}" fill="#8b93c4" font-size="11" text-anchor="end">${v.toFixed(2)}</text>`;
+    g+=`<line x1="${P.l}" y1="${y(v)}" x2="${P.l+iw}" y2="${y(v)}" stroke="#1d2450" stroke-dasharray="3 4"/>`;
+  });
+  g+=`<text x="${P.l+iw/2}" y="${H-8}" fill="#8b93c4" font-size="12" text-anchor="middle">MARKET IMPLIED PROBABILITY (sqrt scale)</text>`;
+  g+=`<text x="16" y="${P.t+ih/2}" fill="#8b93c4" font-size="12" text-anchor="middle" transform="rotate(-90 16 ${P.t+ih/2})">COMPOSITE SCORE</text>`;
+  // trendline: least squares in plotted pixel space
+  const pts=teams.filter(t=>t.implied!=null).map(t=>({px:x(t.implied),py:y(t.composite)}));
+  const n=pts.length;
+  const mx=pts.reduce((s,p)=>s+p.px,0)/n, my=pts.reduce((s,p)=>s+p.py,0)/n;
+  let num=0,den=0;
+  pts.forEach(p=>{num+=(p.px-mx)*(p.py-my);den+=(p.px-mx)**2;});
+  const slope=num/den, icept=my-slope*mx;
+  const yAt=px=>Math.max(P.t,Math.min(P.t+ih,icept+slope*px));
+  g+=`<line x1="${P.l}" y1="${yAt(P.l)}" x2="${P.l+iw}" y2="${yAt(P.l+iw)}" stroke="#f5c84c" stroke-width="1.5" stroke-dasharray="7 5" opacity=".7"/>`;
+  g+=`<text x="${P.l+iw-6}" y="${yAt(P.l+iw)-8}" fill="#f5c84c" font-size="11" text-anchor="end">trend</text>`;
+  teams.forEach((t,i)=>{
+    if(t.implied==null)return;
+    const cx=x(t.implied),cy=y(t.composite);
+    const host=HOSTS.includes(t.name);
+    g+=`<circle class="scatter-pt" data-i="${i}" cx="${cx}" cy="${cy}" r="${host?7:5.5}" fill="${host?'#f5c84c':'#4c9af5'}" fill-opacity=".88"/>`;
+  });
+  g+=`<circle cx="${P.l+iw-160}" cy="${P.t+10}" r="6" fill="#f5c84c"/><text x="${P.l+iw-148}" y="${P.t+14}" fill="#8b93c4" font-size="11">Host nation</text>`;
+  svg.innerHTML=g;
+  svg.querySelectorAll('.scatter-pt').forEach(c=>{
+    c.addEventListener('mousemove',e=>{
+      const t=teams[+c.dataset.i];
+      tip.innerHTML=`<div class="tt-name">${FLAGS[t.name]||''} ${t.name}</div>
+        <div class="tt-row">Model: <b>${t.composite.toFixed(3)}</b> (rank #${rankOf[t.name]})</div>
+        <div class="tt-row">Market: <b>${(t.implied*100).toFixed(1)}%</b></div>`;
+      const r=box.getBoundingClientRect();
+      tip.style.left=Math.min(e.clientX-r.left+14,r.width-180)+'px';
+      tip.style.top=(e.clientY-r.top-10)+'px';
+      tip.style.display='block';
+    });
+    c.addEventListener('mouseleave',()=>tip.style.display='none');
+  });
+})();
+
+/* ---------- DISAGREEMENTS ---------- */
+(function(){
+  const byMarket=[...teams].filter(t=>t.implied!=null).sort((a,b)=>b.implied-a.implied);
+  const mRank={};byMarket.forEach((t,i)=>mRank[t.name]=i+1);
+  const rows=teams.filter(t=>t.implied!=null).map(t=>({
+    name:t.name,model:rankOf[t.name],market:mRank[t.name],gap:mRank[t.name]-rankOf[t.name]
+  })).sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap)).slice(0,12);
+  document.getElementById('disagree-body').innerHTML=rows.map(r=>`
+    <tr><td>${fl(r.name)}${r.name}</td><td class="mono">#${r.model}</td><td class="mono">#${r.market}</td>
+    <td class="mono ${r.gap>0?'gap-pos':'gap-neg'}">${r.gap>0?'+':''}${r.gap}</td>
+    <td style="color:var(--muted)">${r.gap>0?'Model rates higher than market':'Market rates higher than model'}</td></tr>`).join('');
+})();
+
+/* ---------- ALL MATCHES: SORT + SLIDER + CLICK ---------- */
+let curSort='pool', minConf=0;
+function renderAllMatches(){
+  const c=document.getElementById('all-matches');
+  let ms=DATA.matches.filter(m=>(m.confidence??0)*100>=minConf);
+  if(curSort==='date')ms=[...ms].sort((a,b)=>a.sortdate.localeCompare(b.sortdate));
+  else if(curSort==='confidence')ms=[...ms].sort((a,b)=>(b.confidence??0)-(a.confidence??0));
+  else if(curSort==='gap')ms=[...ms].sort((a,b)=>b.gap-a.gap);
+  let html='';let lastPool='';
+  ms.forEach(m=>{
+    if(curSort==='pool'&&m.pool!==lastPool){html+=`<h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:14px;color:var(--gold);margin:22px 0 10px">Pool ${m.pool}</h3>`;lastPool=m.pool;}
+    html+=matchHTML(m,curSort!=='pool');
+  });
+  c.innerHTML=html||'<p class="note">No matches at this confidence level.</p>';
+  document.getElementById('match-count').textContent=`Showing ${ms.length} of ${DATA.matches.length}`;
+}
+renderAllMatches();
+document.querySelectorAll('.sort-bar button').forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll('.sort-bar button').forEach(x=>x.classList.remove('active'));b.classList.add('active');curSort=b.dataset.sort;renderAllMatches();};
+});
+document.getElementById('conf-slider').addEventListener('input',e=>{
+  minConf=+e.target.value;
+  document.getElementById('slider-val').textContent=minConf+'%';
+  renderAllMatches();
+});
+document.getElementById('all-matches').addEventListener('click',e=>{const r=e.target.closest('.match');if(r)openMatch(+r.dataset.mi);});
+
+/* ---------- LIVE RESULTS ---------- */
+const FEED_URLS=['https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json','https://cdn.jsdelivr.net/gh/openfootball/worldcup.json@master/2026/worldcup.json','https://api.allorigins.win/raw?url='+encodeURIComponent('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')];
+const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[^a-z]/g,'');
+const CANON={};teams.forEach(t=>CANON[norm(t.name)]=t.name);
+Object.assign(CANON,{czechrepublic:'Czechia',unitedstates:'U.S.A.',usa:'U.S.A.',unitedstatesofamerica:'U.S.A.',bosniaandherzegovina:'Bosnia',bosniaherzegovina:'Bosnia',cotedivoire:'Ivory Coast',ctedivoire:'Ivory Coast',korearepublic:'South Korea',korea:'South Korea',caboverde:'Cape Verde',drcongo:'DR Congo',congodr:'DR Congo',democraticrepublicofthecongo:'DR Congo',congokinshasa:'DR Congo',iriran:'Iran',curacao:'Curaçao',trkiye:'Turkey',turkiye:'Turkey'});
+const mkey=(a,b)=>[norm(a),norm(b)].sort().join('|');
+const matchIndex={};DATA.matches.forEach(m=>{matchIndex[mkey(m.team1,m.team2)]=m;});
+
+let liveResults={}, manual={}, MEMSTORE={};
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return MEMSTORE[k]??null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){MEMSTORE[k]=v}}
+try{manual=JSON.parse(lsGet('wk2026_manual')||'{}')}catch(e){manual={}}
+
+function effective(m){
+  const k=mkey(m.team1,m.team2);
+  if(manual[k]&&manual[k].s1!==null&&manual[k].s1!==undefined&&manual[k].s1!==''&&manual[k].s2!==''&&manual[k].s2!==null)return {s1:+manual[k].s1,s2:+manual[k].s2,src:'manual'};
+  if(liveResults[k])return {...liveResults[k],src:'feed'};
+  return null;
+}
+function outcomeOf(m,res){
+  if(!res)return null;
+  const tctc=m.predicted==='Too close to call';
+  if(res.s1===res.s2)return tctc?'tctc-draw':'draw';
+  const winner=res.s1>res.s2?m.team1:m.team2;
+  if(tctc)return 'tctc-decided';
+  return winner===m.predicted?'ok':'bad';
+}
+async function fetchFeed(){
+  const btn=document.getElementById('refresh-btn'),st=document.getElementById('live-status');
+  btn.disabled=true;st.textContent='Fetching…';
+  try{
+    let j=null,lastErr=null;
+    for(const u of FEED_URLS){
+      try{const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);j=await r.json();break;}
+      catch(err){lastErr=err;}
+    }
+    if(!j)throw lastErr||new Error('all sources failed');
+    let found=0;
+    (j.matches||[]).forEach(fm=>{
+      if(!fm.group||!String(fm.group).includes('Group'))return;
+      const n1=fm.team1&&(fm.team1.name||fm.team1), n2=fm.team2&&(fm.team2.name||fm.team2);
+      if(!n1||!n2)return;
+      const c1=CANON[norm(n1)],c2=CANON[norm(n2)];
+      if(!c1||!c2)return;
+      const k=mkey(c1,c2);const m=matchIndex[k];if(!m)return;
+      let s1=null,s2=null;
+      if(typeof fm.score1==='number'){s1=fm.score1;s2=fm.score2;}
+      else if(fm.score&&Array.isArray(fm.score.ft)){s1=fm.score.ft[0];s2=fm.score.ft[1];}
+      else if(typeof fm.goals1==='number'){s1=fm.goals1;s2=fm.goals2;}
+      if(s1===null||s2===null||typeof s2!=='number')return;
+      // orient to our team1/team2
+      if(c1!==m.team1){const tmp=s1;s1=s2;s2=tmp;}
+      liveResults[k]={s1,s2};found++;
+    });
+    st.textContent=`Updated ${new Date().toLocaleTimeString()} — ${found} result${found===1?'':'s'} in feed`;
+  }catch(e){
+    st.textContent='Fetch failed — some browsers (Safari especially) block network requests from locally opened files. Chrome or Firefox usually work; manual score entry always works.';
+  }
+  btn.disabled=false;
+  renderLive();
+}
+document.getElementById('refresh-btn').addEventListener('click',fetchFeed);
+
+function renderLive(){
+  // stats
+  let correct=0,wrong=0,draws=0,tctcDraw=0,tctcDec=0,results=0;
+  const buckets={hi:{c:0,n:0},md:{c:0,n:0},lo:{c:0,n:0}};
+  let confC=[],confW=[];
+  DATA.matches.forEach(m=>{
+    const res=effective(m);if(!res)return;
+    results++;
+    const o=outcomeOf(m,res);
+    if(o==='ok'){correct++;confC.push(m.confidence??0);}
+    if(o==='bad'){wrong++;confW.push(m.confidence??0);}
+    if(o==='draw')draws++;
+    if(o==='tctc-draw')tctcDraw++;
+    if(o==='tctc-decided')tctcDec++;
+    if(o==='ok'||o==='bad'){
+      const c=(m.confidence??0);
+      const b=c>=.75?'hi':(c>=.5?'md':'lo');
+      buckets[b].n++;if(o==='ok')buckets[b].c++;
+    }
+  });
+  const named=correct+wrong+draws;
+  const strict=correct+wrong>0?(correct/(correct+wrong)*100):null;
+  const half=named>0?((correct+0.5*draws)/named*100):null;
+  const avg=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length*100).toFixed(0)+'%':'—';
+  document.getElementById('live-cards').innerHTML=`
+    <div class="card"><div class="lbl">Results in</div><div class="big">${results}<span style="font-size:15px;color:var(--muted)">/72</span></div></div>
+    <div class="card"><div class="lbl">Hit rate (strict)</div><div class="big" style="color:var(--xg)">${strict!=null?strict.toFixed(0)+'%':'—'}</div><div class="small">${correct} correct · ${wrong} wrong</div></div>
+    <div class="card"><div class="lbl">With draw half-credit</div><div class="big" style="color:var(--gold)">${half!=null?half.toFixed(0)+'%':'—'}</div><div class="small">${draws} draw${draws===1?'':'s'} on named predictions</div></div>
+    <div class="card"><div class="lbl">Too close to call</div><div class="big">${tctcDraw+tctcDec}</div><div class="small">${tctcDraw} ended in a draw</div></div>
+    <div class="card"><div class="lbl">Avg confidence</div><div class="big" style="font-size:22px">${avg(confC)} <span style="color:var(--muted);font-size:14px">vs</span> ${avg(confW)}</div><div class="small">correct vs wrong</div></div>`;
+  const bk=(lbl,b)=>`<div class="card"><div class="lbl">${lbl}</div><div class="big" style="font-size:24px">${b.n?Math.round(b.c/b.n*100)+'%':'—'}</div><div class="small">${b.c}/${b.n} correct</div></div>`;
+  document.getElementById('calib').innerHTML=bk('Confidence ≥ 75%',buckets.hi)+bk('Confidence 50–75%',buckets.md)+bk('Confidence < 50%',buckets.lo);
+  // list
+  let html='';let lastPool='';
+  DATA.matches.forEach(m=>{
+    if(m.pool!==lastPool){html+=`<div class="live-pool-h">Pool ${m.pool}</div>`;lastPool=m.pool;}
+    const k=mkey(m.team1,m.team2);
+    const res=effective(m);
+    const o=res?outcomeOf(m,res):null;
+    const badge=!res?'<div class="outcome pending">awaiting</div>':
+      o==='ok'?'<div class="outcome ok">✓ correct</div>':
+      o==='bad'?'<div class="outcome bad">✗ wrong</div>':
+      o==='draw'?'<div class="outcome half">◐ draw</div>':
+      o==='tctc-draw'?'<div class="outcome tctc">TCTC · draw</div>':
+      '<div class="outcome tctc">TCTC</div>';
+    const mv=manual[k]||{},lv=liveResults[k]||{};
+    const v1=(mv.s1!==''&&mv.s1!=null)?mv.s1:(lv.s1!=null?lv.s1:'');
+    const v2=(mv.s2!==''&&mv.s2!=null)?mv.s2:(lv.s2!=null?lv.s2:'');
+    const manualMark=res&&res.src==='manual'?'<span title="manual entry" style="color:var(--gold)">●</span>':'';
+    html+=`<div class="live-row">
+      <div class="when">${m.date}<br>${m.time}</div>
+      <div class="teams">${fl(m.team1)}${m.team1}<span class="vs">vs</span>${fl(m.team2)}${m.team2} ${manualMark}</div>
+      <div class="pred-small">Pred: <b>${m.predicted}</b><br>conf ${m.confidence!=null?Math.round(m.confidence*100)+'%':'—'}</div>
+      <div class="score-in"><input type="number" min="0" max="20" inputmode="numeric" data-k="${k}" data-side="s1" value="${v1}"><span class="dash">–</span><input type="number" min="0" max="20" inputmode="numeric" data-k="${k}" data-side="s2" value="${v2}"></div>
+      ${badge}
+    </div>`;
+  });
+  document.getElementById('live-list').innerHTML=html;
+}
+document.getElementById('live-list').addEventListener('change',e=>{
+  const inp=e.target;if(!inp.dataset.k)return;
+  const k=inp.dataset.k;
+  manual[k]=manual[k]||{s1:'',s2:''};
+  manual[k][inp.dataset.side]=inp.value===''?'':+inp.value;
+  if(manual[k].s1===''&&manual[k].s2==='')delete manual[k];
+  lsSet('wk2026_manual',JSON.stringify(manual));
+  renderLive();
+});
+renderLive();
+let liveFetched=false;
+
+/* ---------- NAV ---------- */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.page).classList.add('active');
+    if(b.dataset.page==='live'&&!liveFetched){liveFetched=true;fetchFeed();}
+    window.scrollTo({top:0});
+  };
+});
+</script>
+</body>
+</html>
