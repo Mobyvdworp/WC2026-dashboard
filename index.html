@@ -211,6 +211,7 @@ svg text{font-family:'IBM Plex Mono',monospace}
   <button data-page="market">Model vs Market</button>
   <button data-page="matches">All Matches</button>
   <button data-page="live">Live Results</button>
+  <button data-page="poisson">Live Model</button>
   <button data-page="method">Methodology</button>
 </nav>
 
@@ -261,6 +262,14 @@ svg text{font-family:'IBM Plex Mono',monospace}
     <thead><tr><th>Team</th><th>Model rank</th><th>Market rank</th><th>Gap</th><th>Reading</th></tr></thead>
     <tbody id="disagree-body"></tbody>
   </table>
+
+  <h2 style="font-size:16px;margin-top:34px">Hit-rate race · three predictors</h2>
+  <p class="note">As results come in, how each predictor is doing on decided matches: your frozen pre-tournament model, the live-updating Poisson model, and the betting market (the pre-match favourite by implied tournament odds). Updates automatically from the openfootball feed.</p>
+  <div class="cards" id="race-cards"></div>
+
+  <h2 style="font-size:16px;margin-top:22px">Per-match: model probability vs market favourite</h2>
+  <p class="note">For each fixture, the live Poisson win probability for the market's favourite team. Points well below 50% are matches where your model disagrees with the bookmakers' pick — the most interesting ones to watch.</p>
+  <div class="scatter-box"><svg id="mm-scatter" width="100%" viewBox="0 0 900 460"></svg><div class="tooltip" id="mm-tip"></div></div>
 </section>
 
 <section id="matches" class="page">
@@ -293,10 +302,41 @@ svg text{font-family:'IBM Plex Mono',monospace}
   <h2 style="font-size:15px">Confidence calibration</h2>
   <p class="note" style="margin-bottom:12px">Do high-confidence predictions actually hit more often? Accuracy per confidence bucket (strict, decided matches only).</p>
   <div class="calib" id="calib"></div>
+  <div class="sort-bar" id="live-sortbar">
+    <span>Sort</span>
+    <button class="active" data-lsort="pool">Pool</button>
+    <button data-lsort="date">Date</button>
+    <span style="margin-left:10px">Show</span>
+    <button class="active" data-lfilter="all">All</button>
+    <button data-lfilter="ok">Correct</button>
+    <button data-lfilter="bad">Wrong</button>
+    <button data-lfilter="draw">Draws</button>
+    <button data-lfilter="pending">Awaiting</button>
+  </div>
   <div id="live-list"></div>
   <p class="live-src"><b style="color:var(--gold)">Tip:</b> the live feed and venue maps need the dashboard to be served over https — they are blocked when the file is opened directly from disk (file://). Host it free on Netlify Drop, GitHub Pages or Cloudflare Pages to enable them (and to open it on your phone / share a link). Source: openfootball/worldcup.json (public domain). Manual entries are stored locally in your browser and never leave this page.</p>
 </section>
 
+<section id="poisson" class="page">
+  <h2>Live Poisson model</h2>
+  <p class="note">A goal-based scoreline model that updates as results come in. Each team starts with an attack and defence rating seeded from its pre-tournament goals and xG (with a luck-correction), then both ratings nudge gently after every completed match — cautiously early, more responsively as evidence builds. For each fixture it produces the most likely scorelines and win / draw / loss probabilities. The frozen pre-tournament composite prediction is shown alongside so you can see whether updating actually improves accuracy.</p>
+  <div class="live-bar">
+    <button id="poi-refresh">Refresh &amp; recompute</button>
+    <span class="live-status" id="poi-status">Loading…</span>
+  </div>
+  <div class="cards" id="poi-cards"></div>
+  <div class="sort-bar" id="poi-sortbar">
+    <span>Sort</span>
+    <button class="active" data-psort="pool">Pool</button>
+    <button data-psort="date">Date</button>
+    <span style="margin-left:10px">Show</span>
+    <button class="active" data-pfilter="upcoming">Upcoming</button>
+    <button data-pfilter="all">All fixtures</button>
+    <button data-pfilter="played">Played</button>
+  </div>
+  <div id="poi-list"></div>
+  <p class="live-src">Model runs entirely in your browser. Updates use final scores from the openfootball feed (goals, with shrinkage toward expectation to limit finishing luck). Not a full Dixon-Coles refit — see Methodology.</p>
+</section>
 <section id="method" class="page">
   <h2>How the model works</h2>
   <p class="note">Every number in this dashboard traces back to four variables, each normalised to a 0–1 scale and combined with fixed weights.</p>
@@ -339,6 +379,11 @@ svg text{font-family:'IBM Plex Mono',monospace}
     <p style="margin-bottom:10px">The predicted winner is the team with the higher composite score; a gap below 0.08 is flagged "too close to call". The confidence score combines four signals: composite gap (40%), xG inclusion for both teams (25%), xG data quality (15%) and agreement with the betting market (20%). Confidence measures how reliable the prediction is — it is not a win probability.</p>
     <p style="margin-bottom:10px">Live results are pulled from the openfootball public-domain dataset and compared automatically: a predicted winner that wins counts as correct, a draw counts as half credit (the same convention as the 2022 backtest), and "too close to call" matches are tracked separately.</p>
     <p>Validation: ELO alone correctly predicted 54% of 2022 WC group matches (65% with half-credit draws), beating random chance (33%) and matching academic benchmarks. Venue coordinates on match cards were added during the dashboard build and are approximate stadium locations.</p>
+  </div>
+  <div class="method-block">
+    <h3 style="font-family:'Archivo';font-weight:800;text-transform:uppercase;font-size:15px;color:var(--xg);margin:20px 0 8px">Live Poisson model</h3>
+    <p style="margin-bottom:10px">Each team carries an <b style="color:var(--text)">attack</b> and <b style="color:var(--text)">defence</b> rating on a goals scale (1.0 = tournament average). Priors are seeded from pre-tournament goals-for / goals-against per match, corrected toward each team's xG so finishing luck in the warm-ups doesn't inflate them. Expected goals for a fixture = baseline (1.30) × attacker's attack × opponent's defence, with a 1.10 home factor for host nations. Those two expected-goal numbers feed independent Poisson distributions whose product gives the full scoreline grid; summing the grid yields win / draw / loss and expected points.</p>
+    <p style="margin-bottom:10px"><b style="color:var(--text)">Updating:</b> after each completed match both teams' ratings move toward what happened, via <span style="font-family:'IBM Plex Mono',monospace">new = old + k × (shrunk_result − expected)</span>. The result is first shrunk toward its expectation to dampen flukes, and the learning rate k grows from ~0.04 early to ~0.10 later, so single group-stage games barely move ratings while accumulated knockout evidence counts more. This is a deliberately gentle, browser-side approximation — not Python's full maximum-likelihood Dixon-Coles refit, which would model low-score draw correlation and fit all parameters jointly.</p>
   </div>
 </section>
 </div>
@@ -660,11 +705,12 @@ document.getElementById('all-matches').addEventListener('click',e=>{const r=e.ta
 const FEED_URLS=['https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json','https://cdn.jsdelivr.net/gh/openfootball/worldcup.json@master/2026/worldcup.json','https://api.allorigins.win/raw?url='+encodeURIComponent('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')];
 const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[^a-z]/g,'');
 const CANON={};teams.forEach(t=>CANON[norm(t.name)]=t.name);
-Object.assign(CANON,{czechrepublic:'Czechia',unitedstates:'U.S.A.',usa:'U.S.A.',unitedstatesofamerica:'U.S.A.',bosniaandherzegovina:'Bosnia',bosniaherzegovina:'Bosnia',cotedivoire:'Ivory Coast',ctedivoire:'Ivory Coast',korearepublic:'South Korea',korea:'South Korea',caboverde:'Cape Verde',drcongo:'DR Congo',congodr:'DR Congo',democraticrepublicofthecongo:'DR Congo',congokinshasa:'DR Congo',iriran:'Iran',curacao:'Curaçao',trkiye:'Turkey',turkiye:'Turkey'});
+Object.assign(CANON,{czechrepublic:'Czechia',unitedstates:'U.S.A.',usa:'U.S.A.',unitedstatesofamerica:'U.S.A.',bosniaandherzegovina:'Bosnia',bosniaherzegovina:'Bosnia',cotedivoire:'Ivory Coast',ctedivoire:'Ivory Coast',korearepublic:'South Korea',korea:'South Korea',caboverde:'Cape Verde',drcongo:'DR Congo',congodr:'DR Congo',democraticrepublicofthecongo:'DR Congo',congokinshasa:'DR Congo',iriran:'Iran',curacao:'Curaçao',trkiye:'Turkey',turkiye:'Turkey',uefapathdwinner:'Czechia',uefapathawinner:'Bosnia',uefapathcwinner:'Turkey',uefapathbwinner:'Sweden'});
 const mkey=(a,b)=>[norm(a),norm(b)].sort().join('|');
 const matchIndex={};DATA.matches.forEach(m=>{matchIndex[mkey(m.team1,m.team2)]=m;});
 
 let liveResults={}, manual={}, MEMSTORE={};
+let liveSort='pool', liveFilter='all';
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return MEMSTORE[k]??null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){MEMSTORE[k]=v}}
 try{manual=JSON.parse(lsGet('wk2026_manual')||'{}')}catch(e){manual={}}
@@ -710,7 +756,7 @@ async function fetchFeed(){
       if(c1!==m.team1){const tmp=s1;s1=s2;s2=tmp;}
       liveResults[k]={s1,s2};found++;
     });
-    st.textContent=`Updated ${new Date().toLocaleTimeString()} — ${found} result${found===1?'':'s'} in feed`;
+    st.textContent=found>0?`Updated ${new Date().toLocaleTimeString()} — ${found} result${found===1?'':'s'} in feed`:`Feed reached, but it has no scores published yet (openfootball updates results some time after matches finish). Enter scores manually to track now. Checked ${new Date().toLocaleTimeString()}.`;
   }catch(e){
     st.textContent='Fetch failed — some browsers (Safari especially) block network requests from locally opened files. Chrome or Firefox usually work; manual score entry always works.';
   }
@@ -751,10 +797,22 @@ function renderLive(){
     <div class="card"><div class="lbl">Avg confidence</div><div class="big" style="font-size:22px">${avg(confC)} <span style="color:var(--muted);font-size:14px">vs</span> ${avg(confW)}</div><div class="small">correct vs wrong</div></div>`;
   const bk=(lbl,b)=>`<div class="card"><div class="lbl">${lbl}</div><div class="big" style="font-size:24px">${b.n?Math.round(b.c/b.n*100)+'%':'—'}</div><div class="small">${b.c}/${b.n} correct</div></div>`;
   document.getElementById('calib').innerHTML=bk('Confidence ≥ 75%',buckets.hi)+bk('Confidence 50–75%',buckets.md)+bk('Confidence < 50%',buckets.lo);
-  // list
+  // list — build rows with outcome, then sort + filter
+  const filterMatch=(m)=>{
+    const res=effective(m);const o=res?outcomeOf(m,res):null;
+    if(liveFilter==='all')return true;
+    if(liveFilter==='pending')return !res;
+    if(liveFilter==='ok')return o==='ok';
+    if(liveFilter==='bad')return o==='bad';
+    if(liveFilter==='draw')return o==='draw'||o==='tctc-draw';
+    return true;
+  };
+  let rows=DATA.matches.filter(filterMatch);
+  if(liveSort==='date')rows=[...rows].sort((a,b)=>a.sortdate.localeCompare(b.sortdate));
   let html='';let lastPool='';
-  DATA.matches.forEach(m=>{
-    if(m.pool!==lastPool){html+=`<div class="live-pool-h">Pool ${m.pool}</div>`;lastPool=m.pool;}
+  const usePoolHeaders=(liveSort==='pool'&&liveFilter==='all');
+  rows.forEach(m=>{
+    if(usePoolHeaders&&m.pool!==lastPool){html+=`<div class="live-pool-h">Pool ${m.pool}</div>`;lastPool=m.pool;}
     const k=mkey(m.team1,m.team2);
     const res=effective(m);
     const o=res?outcomeOf(m,res):null;
@@ -776,8 +834,14 @@ function renderLive(){
       ${badge}
     </div>`;
   });
-  document.getElementById('live-list').innerHTML=html;
+  document.getElementById('live-list').innerHTML=html||'<p class="note">No matches match this filter yet.</p>';
 }
+document.getElementById('live-sortbar').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.lsort){document.querySelectorAll('#live-sortbar [data-lsort]').forEach(x=>x.classList.remove('active'));b.classList.add('active');liveSort=b.dataset.lsort;}
+  if(b.dataset.lfilter){document.querySelectorAll('#live-sortbar [data-lfilter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');liveFilter=b.dataset.lfilter;}
+  renderLive();
+});
 document.getElementById('live-list').addEventListener('change',e=>{
   const inp=e.target;if(!inp.dataset.k)return;
   const k=inp.dataset.k;
@@ -790,6 +854,199 @@ document.getElementById('live-list').addEventListener('change',e=>{
 renderLive();
 let liveFetched=false;
 
+
+/* ================= LIVE POISSON MODEL ================= */
+const POI = {"priors": {"Mexico": {"att": 0.892, "def": 0.388}, "South Africa": {"att": 0.801, "def": 1.198}, "South Korea": {"att": 0.933, "def": 0.676}, "Czechia": {"att": 1.065, "def": 0.978}, "Canada": {"att": 0.838, "def": 0.609}, "Bosnia": {"att": 1.003, "def": 1.15}, "Qatar": {"att": 0.35, "def": 1.306}, "Switzerland": {"att": 1.056, "def": 0.984}, "Brazil": {"att": 1.326, "def": 1.202}, "Morocco": {"att": 0.888, "def": 0.449}, "Haiti": {"att": 0.726, "def": 1.163}, "Scotland": {"att": 1.037, "def": 1.388}, "U.S.A.": {"att": 1.076, "def": 2.064}, "Paraguay": {"att": 0.548, "def": 0.963}, "Australia": {"att": 0.772, "def": 1.113}, "Turkey": {"att": 1.23, "def": 1.516}, "Germany": {"att": 1.345, "def": 0.963}, "Cura\u00e7ao": {"att": 0.944, "def": 1.595}, "Ivory Coast": {"att": 0.993, "def": 0.889}, "Ecuador": {"att": 0.518, "def": 0.35}, "Netherlands": {"att": 1.156, "def": 0.883}, "Japan": {"att": 1.225, "def": 0.588}, "Sweden": {"att": 0.727, "def": 2.152}, "Tunisia": {"att": 0.7, "def": 1.521}, "Belgium": {"att": 1.826, "def": 0.787}, "Egypt": {"att": 0.55, "def": 0.795}, "Iran": {"att": 0.687, "def": 0.658}, "New Zealand": {"att": 0.761, "def": 1.672}, "Spain": {"att": 1.47, "def": 0.449}, "Cape Verde": {"att": 1.004, "def": 0.986}, "Saudi Arabia": {"att": 0.617, "def": 1.227}, "Uruguay": {"att": 0.527, "def": 0.988}, "France": {"att": 1.238, "def": 1.017}, "Senegal": {"att": 0.942, "def": 0.72}, "Iraq": {"att": 0.526, "def": 1.151}, "Norway": {"att": 1.53, "def": 0.985}, "Argentina": {"att": 1.341, "def": 0.63}, "Algeria": {"att": 0.965, "def": 0.637}, "Austria": {"att": 1.306, "def": 0.56}, "Jordan": {"att": 0.875, "def": 1.668}, "Portugal": {"att": 1.404, "def": 0.957}, "DR Congo": {"att": 0.641, "def": 0.432}, "Uzbekistan": {"att": 0.74, "def": 0.877}, "Colombia": {"att": 1.13, "def": 1.239}, "England": {"att": 1.237, "def": 1.237}, "Croatia": {"att": 1.023, "def": 1.077}, "Ghana": {"att": 0.453, "def": 1.662}, "Panama": {"att": 0.86, "def": 1.735}}, "baseline": 1.35, "home": 1.1};
+let poiFilter='upcoming', poiSort='pool';
+function poiFactorial(n){let r=1;for(let i=2;i<=n;i++)r*=i;return r;}
+function poiPmf(k,lam){return Math.pow(lam,k)*Math.exp(-lam)/poiFactorial(k);}
+function poiGrid(l1,l2,max){
+  // returns {pWin1,pDraw,pWin2,top:[{s,p}], ep1, ep2}
+  let pW1=0,pD=0,pW2=0;const cells=[];
+  for(let a=0;a<=max;a++)for(let b=0;b<=max;b++){
+    const p=poiPmf(a,l1)*poiPmf(b,l2);
+    cells.push({a,b,p});
+    if(a>b)pW1+=p;else if(a===b)pD+=p;else pW2+=p;
+  }
+  cells.sort((x,y)=>y.p-x.p);
+  const ep1=pW1*3+pD, ep2=pW2*3+pD;
+  return {pW1,pD,pW2,top:cells.slice(0,3),ep1,ep2};
+}
+function poiCompute(){
+  // clone priors into mutable ratings
+  const R={};Object.keys(POI.priors).forEach(n=>R[n]={att:POI.priors[n].att,def:POI.priors[n].def});
+  const base=POI.baseline, homeF=POI.home;
+  const HOSTSET=new Set(HOSTS);
+  // ordered list of played matches by date for sequential updating
+  const played=[];
+  DATA.matches.forEach(m=>{
+    const res=effective(m);
+    if(res){played.push({m,res});}
+  });
+  played.sort((a,b)=>a.m.sortdate.localeCompare(b.m.sortdate));
+  // sequential gentle update
+  let count=0;const total=Math.max(1,played.length);
+  played.forEach(({m,res})=>{
+    const t1=m.team1,t2=m.team2;
+    if(!R[t1]||!R[t2])return;
+    const h1=HOSTSET.has(t1)?homeF:1, h2=HOSTSET.has(t2)?homeF:1;
+    const exp1=base*R[t1].att*R[t2].def*h1;
+    const exp2=base*R[t2].att*R[t1].def*h2;
+    // learning rate grows through tournament
+    const k=0.04+0.06*(count/ (total<8?8:total));
+    // shrink actual toward expectation (dampen luck) — 60% actual, 40% expectation
+    const s1=0.6*res.s1+0.4*exp1, s2=0.6*res.s2+0.4*exp2;
+    // update attack of scorer & defence of conceder, on goals ratio scale
+    R[t1].att=Math.max(0.2,R[t1].att+k*((s1-exp1)/base));
+    R[t2].def=Math.max(0.2,R[t2].def+k*((s1-exp1)/base));
+    R[t2].att=Math.max(0.2,R[t2].att+k*((s2-exp2)/base));
+    R[t1].def=Math.max(0.2,R[t1].def+k*((s2-exp2)/base));
+    count++;
+  });
+  return {R,base,homeF,HOSTSET,playedCount:played.length};
+}
+function poiPredict(state,m){
+  const {R,base,homeF,HOSTSET}=state;
+  if(!R[m.team1]||!R[m.team2])return null;
+  const h1=HOSTSET.has(m.team1)?homeF:1, h2=HOSTSET.has(m.team2)?homeF:1;
+  const l1=base*R[m.team1].att*R[m.team2].def*h1;
+  const l2=base*R[m.team2].att*R[m.team1].def*h2;
+  const g=poiGrid(l1,l2,8);
+  let pick;
+  if(g.pW1>g.pW2&&g.pW1>g.pD)pick=m.team1;
+  else if(g.pW2>g.pW1&&g.pW2>g.pD)pick=m.team2;
+  else pick='Draw';
+  return {l1,l2,...g,pick};
+}
+function renderPoisson(){
+  const state=poiCompute();
+  document.getElementById('poi-status').textContent=`${state.playedCount} result${state.playedCount===1?'':'s'} fed in · ratings updated · recomputed ${new Date().toLocaleTimeString()}`;
+  // accuracy comparison: live model vs frozen composite, on played matches
+  let poiC=0,poiW=0,frC=0,frW=0,both=0;
+  DATA.matches.forEach(m=>{
+    const res=effective(m);if(!res||res.s1===res.s2)return; // decided only
+    const winner=res.s1>res.s2?m.team1:m.team2;
+    // frozen
+    if(m.predicted!=='Too close to call'){both++;if(m.predicted===winner)frC++;else frW++;}
+    // live (recompute WITHOUT this match's own update would be ideal; simple version uses full state)
+    const pr=poiPredict(state,m);
+    if(pr&&pr.pick!=='Draw'){if(pr.pick===winner)poiC++;else poiW++;}
+  });
+  const pct=(c,w)=>(c+w)?Math.round(c/(c+w)*100)+'%':'—';
+  document.getElementById('poi-cards').innerHTML=`
+    <div class="card"><div class="lbl">Results fed in</div><div class="big">${state.playedCount}<span style="font-size:15px;color:var(--muted)">/72</span></div></div>
+    <div class="card"><div class="lbl">Live model hit rate</div><div class="big" style="color:var(--xg)">${pct(poiC,poiW)}</div><div class="small">${poiC} correct · ${poiW} wrong</div></div>
+    <div class="card"><div class="lbl">Frozen model hit rate</div><div class="big" style="color:var(--gold)">${pct(frC,frW)}</div><div class="small">pre-tournament baseline</div></div>
+    <div class="card"><div class="lbl">Decided matches</div><div class="big">${both}</div><div class="small">used in comparison</div></div>`;
+  // list
+  let rows=DATA.matches.map(m=>({m,res:effective(m)}));
+  if(poiFilter==='upcoming')rows=rows.filter(r=>!r.res);
+  else if(poiFilter==='played')rows=rows.filter(r=>r.res);
+  if(poiSort==='date')rows=[...rows].sort((a,b)=>a.m.sortdate.localeCompare(b.m.sortdate));
+  const poiPoolHeaders=(poiSort==='pool');
+  let html='';let poiLastPool='';
+  rows.forEach(({m,res})=>{
+    if(poiPoolHeaders&&m.pool!==poiLastPool){html+=`<div class="live-pool-h">Pool ${m.pool}</div>`;poiLastPool=m.pool;}
+    const pr=poiPredict(state,m);
+    if(!pr){return;}
+    const top=pr.top.map(c=>`${c.a}–${c.b} <span style="color:var(--muted)">${Math.round(c.p*100)}%</span>`).join('  ·  ');
+    const bar=`<div style="display:flex;height:8px;border-radius:3px;overflow:hidden;background:var(--bg2);margin-top:4px">
+      <div style="width:${pr.pW1*100}%;background:var(--xg)"></div>
+      <div style="width:${pr.pD*100}%;background:var(--muted)"></div>
+      <div style="width:${pr.pW2*100}%;background:var(--form)"></div></div>`;
+    const resStr=res?`<span style="color:var(--gold);font-family:'IBM Plex Mono',monospace">${res.s1}–${res.s2}</span>`:'';
+    const frozenAgree=(m.predicted===pr.pick);
+    html+=`<div class="match" style="grid-template-columns:64px 1fr 150px;cursor:default">
+      <div class="when">${m.date}<br>${m.time}<br><span style="color:var(--gold)">${m.pool}</span></div>
+      <div class="teams">${fl(m.team1)}${m.team1}<span class="vs">vs</span>${fl(m.team2)}${m.team2} ${resStr}
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Expected goals: <span style="font-family:'IBM Plex Mono',monospace;color:var(--text)">${pr.l1.toFixed(2)} – ${pr.l2.toFixed(2)}</span> · likely: ${top}</div>
+        ${bar}
+        <div style="font-size:10px;color:var(--muted);margin-top:3px"><span style="color:var(--xg)">${m.team1} ${Math.round(pr.pW1*100)}%</span> · draw ${Math.round(pr.pD*100)}% · <span style="color:var(--form)">${m.team2} ${Math.round(pr.pW2*100)}%</span></div>
+      </div>
+      <div style="font-size:12px">
+        <div>Live pick: <b style="color:var(--gold)">${pr.pick}</b></div>
+        <div style="color:var(--muted);margin-top:3px">Frozen: ${m.predicted} ${frozenAgree?'<span style="color:var(--xg)">✓ agree</span>':'<span style="color:var(--form)">✗ differ</span>'}</div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('poi-list').innerHTML=html||'<p class="note">No fixtures for this filter.</p>';
+  if(typeof renderMarketCompare==='function')renderMarketCompare();
+}
+function marketFavourite(m){
+  const a=DATA.teams[m.team1], b=DATA.teams[m.team2];
+  const ia=a&&a.implied!=null?a.implied:-1, ib=b&&b.implied!=null?b.implied:-1;
+  if(ia<0&&ib<0)return null;
+  return ia>=ib?m.team1:m.team2;
+}
+function renderMarketCompare(){
+  const state=(typeof poiCompute==='function')?poiCompute():null;
+  let frC=0,frW=0,poC=0,poW=0,mkC=0,mkW=0,decided=0;
+  DATA.matches.forEach(m=>{
+    const res=effective(m);if(!res||res.s1===res.s2)return;
+    decided++;
+    const winner=res.s1>res.s2?m.team1:m.team2;
+    if(m.predicted!=='Too close to call'){if(m.predicted===winner)frC++;else frW++;}
+    const fav=marketFavourite(m);
+    if(fav){if(fav===winner)mkC++;else mkW++;}
+    if(state){const pr=poiPredict(state,m);if(pr&&pr.pick!=='Draw'){if(pr.pick===winner)poC++;else poW++;}}
+  });
+  const pct=(c,w)=>(c+w)?Math.round(c/(c+w)*100)+'%':'—';
+  const rc=document.getElementById('race-cards');
+  if(rc)rc.innerHTML=`
+    <div class="card"><div class="lbl">Decided matches</div><div class="big">${decided}</div><div class="small">scored so far</div></div>
+    <div class="card"><div class="lbl">Frozen model</div><div class="big" style="color:var(--gold)">${pct(frC,frW)}</div><div class="small">${frC}–${frW}</div></div>
+    <div class="card"><div class="lbl">Live Poisson</div><div class="big" style="color:var(--xg)">${pct(poC,poW)}</div><div class="small">${poC}–${poW}</div></div>
+    <div class="card"><div class="lbl">Market favourite</div><div class="big" style="color:var(--elo)">${pct(mkC,mkW)}</div><div class="small">${mkC}–${mkW}</div></div>`;
+  // per-match scatter: x = market favourite implied gap (sqrt), y = poisson prob for that favourite
+  const svg=document.getElementById('mm-scatter');if(!svg||!state)return;
+  const W=900,H=460,P={t:20,r:24,b:46,l:56},iw=W-P.l-P.r,ih=H-P.t-P.b;
+  const pts=[];
+  DATA.matches.forEach(m=>{
+    const fav=marketFavourite(m);const pr=poiPredict(state,m);if(!fav||!pr)return;
+    const favProb=fav===m.team1?pr.pW1:pr.pW2;
+    const favImplied=DATA.teams[fav]&&DATA.teams[fav].implied!=null?DATA.teams[fav].implied:0;
+    pts.push({m,fav,favProb,favImplied});
+  });
+  const maxI=Math.max(0.01,...pts.map(p=>p.favImplied));
+  const x=v=>P.l+Math.sqrt(v/maxI)*iw;
+  const y=v=>P.t+ih-v*ih;
+  let g='';
+  g+=`<line x1="${P.l}" y1="${P.t+ih}" x2="${P.l+iw}" y2="${P.t+ih}" stroke="#2a3162"/>`;
+  g+=`<line x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${P.t+ih}" stroke="#2a3162"/>`;
+  g+=`<line x1="${P.l}" y1="${y(0.5)}" x2="${P.l+iw}" y2="${y(0.5)}" stroke="#f5564c" stroke-dasharray="6 5" opacity=".6"/>`;
+  g+=`<text x="${P.l+6}" y="${y(0.5)-6}" fill="#f5564c" font-size="11">50% — coin flip</text>`;
+  [0,.25,.5,.75,1].forEach(v=>{g+=`<text x="${P.l-10}" y="${y(v)+4}" fill="#8b93c4" font-size="11" text-anchor="end">${Math.round(v*100)}%</text>`;});
+  [0,.02,.05,.10,.167].forEach(v=>{if(v<=maxI)g+=`<text x="${x(v)}" y="${P.t+ih+18}" fill="#8b93c4" font-size="10" text-anchor="middle">${(v*100).toFixed(1)}%</text>`;});
+  g+=`<text x="${P.l+iw/2}" y="${H-6}" fill="#8b93c4" font-size="11" text-anchor="middle">MARKET FAVOURITE — IMPLIED TOURNAMENT PROB (sqrt)</text>`;
+  g+=`<text x="14" y="${P.t+ih/2}" fill="#8b93c4" font-size="11" text-anchor="middle" transform="rotate(-90 14 ${P.t+ih/2})">POISSON WIN PROB FOR FAVOURITE</text>`;
+  pts.forEach((p,i)=>{
+    const disagree=p.favProb<0.5;
+    g+=`<circle class="mm-pt" data-i="${i}" cx="${x(p.favImplied)}" cy="${y(p.favProb)}" r="5" fill="${disagree?'#f5564c':'#4cf5a8'}" fill-opacity=".82"/>`;
+  });
+  svg.innerHTML=g;
+  const tip=document.getElementById('mm-tip');const box=svg.parentElement;
+  svg.querySelectorAll('.mm-pt').forEach(c=>{
+    c.addEventListener('mousemove',e=>{
+      const p=pts[+c.dataset.i];
+      tip.innerHTML=`<div class="tt-name">${p.m.team1} vs ${p.m.team2}</div>
+        <div class="tt-row">Market fav: <b>${p.fav}</b> (${(p.favImplied*100).toFixed(1)}%)</div>
+        <div class="tt-row">Poisson gives ${p.fav}: <b>${Math.round(p.favProb*100)}%</b></div>`;
+      const r=box.getBoundingClientRect();
+      tip.style.left=Math.min(e.clientX-r.left+14,r.width-180)+'px';
+      tip.style.top=(e.clientY-r.top-10)+'px';tip.style.display='block';
+    });
+    c.addEventListener('mouseleave',()=>tip.style.display='none');
+  });
+}
+document.getElementById('poi-sortbar').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.psort){document.querySelectorAll('#poi-sortbar [data-psort]').forEach(x=>x.classList.remove('active'));b.classList.add('active');poiSort=b.dataset.psort;}
+  if(b.dataset.pfilter){document.querySelectorAll('#poi-sortbar [data-pfilter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');poiFilter=b.dataset.pfilter;}
+  renderPoisson();
+});
+document.getElementById('poi-refresh').addEventListener('click',async()=>{await fetchFeed();renderPoisson();});
+let poiInit=false;
+
 /* ---------- NAV ---------- */
 document.querySelectorAll('nav button').forEach(b=>{
   b.onclick=()=>{
@@ -798,6 +1055,8 @@ document.querySelectorAll('nav button').forEach(b=>{
     b.classList.add('active');
     document.getElementById(b.dataset.page).classList.add('active');
     if(b.dataset.page==='live'&&!liveFetched){liveFetched=true;fetchFeed();}
+    if(b.dataset.page==='poisson'){if(!liveFetched){liveFetched=true;fetchFeed().then(renderPoisson);}else{renderPoisson();}}
+    if(b.dataset.page==='market'){if(!liveFetched){liveFetched=true;fetchFeed().then(()=>{renderPoisson();renderMarketCompare();});}else{renderMarketCompare();}}
     window.scrollTo({top:0});
   };
 });
